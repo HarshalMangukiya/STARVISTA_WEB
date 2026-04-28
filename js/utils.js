@@ -1,0 +1,99 @@
+// ===== Utility Functions =====
+
+/**
+ * Get payment status from end_date
+ * @param {Date} endDate
+ * @returns {'paid'|'upcoming'|'pending'}
+ */
+function getPaymentStatus(endDate) {
+  if (!endDate) return 'pending';
+  const now = new Date();
+  const end = endDate instanceof Date ? endDate : endDate.toDate();
+  const diffMs = end.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) return 'pending';
+  if (diffDays <= 7) return 'upcoming';
+  return 'paid';
+}
+
+/**
+ * Format a date to DD MMM YYYY
+ */
+function formatDate(date) {
+  if (!date) return '—';
+  const d = date instanceof Date ? date : date.toDate();
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/**
+ * Format date for input[type=date]
+ */
+function formatDateForInput(date) {
+  if (!date) return '';
+  const d = date instanceof Date ? date : date.toDate();
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Add months to a date
+ */
+function addMonths(date, months) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+/**
+ * Show a toast notification
+ */
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(40px)';
+    toast.style.transition = '0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+/**
+ * Upload image to Cloudinary
+ */
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!res.ok) throw new Error('Image upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
+/**
+ * Create element helper
+ */
+function el(tag, attrs = {}, children = []) {
+  const elem = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'className') elem.className = v;
+    else if (k === 'textContent') elem.textContent = v;
+    else if (k === 'innerHTML') elem.innerHTML = v;
+    else if (k.startsWith('on')) elem.addEventListener(k.slice(2).toLowerCase(), v);
+    else elem.setAttribute(k, v);
+  });
+  children.forEach(c => {
+    if (typeof c === 'string') elem.appendChild(document.createTextNode(c));
+    else if (c) elem.appendChild(c);
+  });
+  return elem;
+}
