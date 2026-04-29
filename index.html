@@ -249,6 +249,65 @@
     </div>
   </div>
 
+  <!-- ==================== MODAL: EDIT RESIDENT FIELD ==================== -->
+  <div id="edit-field-modal" class="modal-overlay">
+    <div class="modal edit-modal">
+      <div class="modal-header">
+        <h2 id="edit-field-title">Edit Field</h2>
+        <button id="edit-field-close" class="modal-close">✕</button>
+      </div>
+
+      <div class="edit-field-content">
+        <!-- Name Field -->
+        <div id="edit-name-field" class="edit-field-form">
+          <label for="edit-name-input">Resident Name</label>
+          <input type="text" id="edit-name-input" placeholder="Enter name" maxlength="100" />
+          <small class="field-hint">Name cannot be empty</small>
+        </div>
+
+        <!-- Contact Field -->
+        <div id="edit-contact-field" class="edit-field-form">
+          <label for="edit-contact-input">Contact Number</label>
+          <input type="text" id="edit-contact-input" placeholder="Enter 10-digit phone number" maxlength="15" />
+          <small class="field-hint">Contact number must contain only digits</small>
+        </div>
+
+        <!-- Start Date Field -->
+        <div id="edit-start-date-field" class="edit-field-form">
+          <label for="edit-start-date-input">Start Date</label>
+          <input type="date" id="edit-start-date-input" />
+          <small class="field-hint">Select start date for the resident</small>
+        </div>
+
+        <!-- End Date Field -->
+        <div id="edit-end-date-field" class="edit-field-form">
+          <label for="edit-end-date-input">End Date</label>
+          <input type="date" id="edit-end-date-input" />
+          <small class="field-hint">End date cannot be before start date</small>
+        </div>
+
+        <!-- Remark Field -->
+        <div id="edit-remark-field" class="edit-field-form">
+          <label for="edit-remark-input">Remark</label>
+          <textarea id="edit-remark-input" placeholder="Enter remark" rows="3" maxlength="500"></textarea>
+          <small class="field-hint" id="remark-count">0/500 characters</small>
+        </div>
+
+        <!-- Room No Field -->
+        <div id="edit-room-field" class="edit-field-form">
+          <label for="edit-room-input">Room Number</label>
+          <input type="text" id="edit-room-input" placeholder="Enter room number" maxlength="20" />
+          <small class="field-hint">Enter valid room number</small>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="edit-field-cancel">Cancel</button>
+        <button class="btn btn-primary" id="edit-field-confirm" style="width:auto;">Confirm Update</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
