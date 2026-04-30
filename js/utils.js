@@ -18,12 +18,15 @@ function getPaymentStatus(endDate) {
 }
 
 /**
- * Format a date to DD MMM YYYY
+ * Format a date to dd/mm/yyyy
  */
 function formatDate(date) {
   if (!date) return '—';
   const d = date instanceof Date ? date : date.toDate();
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 /**

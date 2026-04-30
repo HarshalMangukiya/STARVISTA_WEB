@@ -156,7 +156,19 @@ function renderResidentsTable() {
           style: 'color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;',
           'data-tooltip': 'Click to Edit',
           onClick: () => openEditFieldModal('remarks', room.id, resident.id, resident.data, resident.data.remarks || '')
-        })
+        }),
+        // Delete Button
+        el('td', { style: 'text-align: center;' }, [
+          el('button', {
+            className: 'delete-btn',
+            title: 'Delete Resident',
+            innerHTML: '🗑️',
+            onClick: (e) => {
+              e.stopPropagation();
+              openDeleteResidentModal(room.id, resident.id, resident.data);
+            }
+          })
+        ])
       ]);
       tableBody.appendChild(row);
     });
@@ -168,7 +180,7 @@ function renderResidentsTable() {
           textContent: (occupiedCount === 0 && i === 0) ? `Room ${room.data.room_no}` : '',
           style: (occupiedCount === 0 && i === 0) ? 'font-weight:600;color:var(--accent-hover);' : ''
         }),
-        el('td', { colspan: '6' }, [
+        el('td', { colspan: '7' }, [
           el('button', {
             className: 'add-resident-btn',
             innerHTML: '+ Add Resident',
@@ -596,6 +608,71 @@ async function saveEditedField() {
   }
 }
 
+// ===== Delete Resident Modal =====
+let deleteResidentData = {
+  roomId: null,
+  residentId: null,
+  residentData: null
+};
+
+function openDeleteResidentModal(roomId, residentId, residentData) {
+  deleteResidentData = { roomId, residentId, residentData };
+  
+  const modal = document.getElementById('delete-resident-modal');
+  document.getElementById('delete-resident-name').textContent = residentData.name;
+  
+  // Reset button state
+  const confirmBtn = document.getElementById('delete-resident-confirm');
+  confirmBtn.disabled = false;
+  document.getElementById('delete-btn-text').style.display = 'inline';
+  document.getElementById('delete-btn-loader').style.display = 'none';
+  
+  modal.classList.add('active');
+}
+
+function closeDeleteResidentModal() {
+  document.getElementById('delete-resident-modal').classList.remove('active');
+  deleteResidentData = { roomId: null, residentId: null, residentData: null };
+}
+
+async function confirmDeleteResident() {
+  const confirmBtn = document.getElementById('delete-resident-confirm');
+  const textSpan = document.getElementById('delete-btn-text');
+  const loader = document.getElementById('delete-btn-loader');
+  
+  // Show loading state
+  confirmBtn.disabled = true;
+  textSpan.style.display = 'none';
+  loader.style.display = 'inline-block';
+  
+  try {
+    // Delete from Firebase
+    await db.collection('properties').doc(currentPropertyId)
+      .collection('rooms').doc(deleteResidentData.roomId)
+      .collection('residents').doc(deleteResidentData.residentId)
+      .delete();
+    
+    // Remove from memory
+    const room = currentRooms.find(r => r.id === deleteResidentData.roomId);
+    if (room) {
+      room.residents = room.residents.filter(r => r.id !== deleteResidentData.residentId);
+    }
+    
+    showToast('Resident deleted successfully!', 'success');
+    closeDeleteResidentModal();
+    renderResidentsTable(); // Re-render table
+    
+  } catch (err) {
+    console.error('Error deleting resident:', err);
+    showToast('Failed to delete resident', 'error');
+    
+    // Reset button state on error
+    confirmBtn.disabled = false;
+    textSpan.style.display = 'inline';
+    loader.style.display = 'none';
+  }
+}
+
 // ===== WhatsApp Reminder Functions =====
 
 /**
@@ -903,6 +980,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('edit-field-confirm').addEventListener('click', saveEditedField);
   document.getElementById('edit-field-modal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeEditFieldModal();
+  });
+
+  // Delete Resident modal
+  document.getElementById('delete-resident-close').addEventListener('click', closeDeleteResidentModal);
+  document.getElementById('delete-resident-cancel').addEventListener('click', closeDeleteResidentModal);
+  document.getElementById('delete-resident-confirm').addEventListener('click', confirmDeleteResident);
+  document.getElementById('delete-resident-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeDeleteResidentModal();
   });
 
   // Remark textarea character counter
