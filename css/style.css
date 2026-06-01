@@ -724,6 +724,55 @@ body {
   transition: transform 0.25s ease;
 }
 
+.modal.modal-lg {
+  max-width: 800px;
+}
+
+.edit-room-resident-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 15px;
+  margin-bottom: 15px;
+  background: var(--bg-primary);
+}
+
+.edit-room-resident-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.edit-room-resident-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.edit-room-remove-btn {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.edit-room-remove-btn:hover {
+  opacity: 0.8;
+}
+
+.edit-room-resident-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 15px;
+}
+
+
 .modal-overlay.active .modal {
   transform: scale(1) translateY(0);
 }
@@ -1020,6 +1069,14 @@ body {
 
   .date-manual {
     grid-template-columns: 1fr;
+  }
+
+  .edit-room-resident-fields {
+    grid-template-columns: 1fr;
+  }
+  
+  .edit-room-resident-fields .form-group {
+    grid-column: span 1 !important;
   }
 }
 

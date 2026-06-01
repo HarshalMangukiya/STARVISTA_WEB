@@ -20,6 +20,9 @@ const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOU
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db = firebase.firestore();
+db.settings({
+  experimentalForceLongPolling: true
+});
 
 // ===== Router =====
 const routes = {

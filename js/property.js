@@ -27,15 +27,16 @@ async function loadPropertyDetail(propertyId) {
     const roomsSnap = await db.collection('properties').doc(propertyId)
       .collection('rooms').orderBy('room_no').get();
 
-    currentRooms = [];
-    for (const roomDoc of roomsSnap.docs) {
+    const roomPromises = roomsSnap.docs.map(async (roomDoc) => {
       const residentsSnap = await db.collection('properties').doc(propertyId)
         .collection('rooms').doc(roomDoc.id)
         .collection('residents').get();
 
       const residents = residentsSnap.docs.map(r => ({ id: r.id, data: r.data() }));
-      currentRooms.push({ id: roomDoc.id, data: roomDoc.data(), residents });
-    }
+      return { id: roomDoc.id, data: roomDoc.data(), residents };
+    });
+
+    currentRooms = await Promise.all(roomPromises);
 
     renderResidentsTable();
   } catch (err) {
@@ -73,7 +74,7 @@ function renderResidentsTable() {
           textContent: resIdx === 0 ? `Room ${room.data.room_no}` : '',
           style: resIdx === 0 ? 'font-weight:600;color:var(--accent-hover);' : '',
           'data-tooltip': 'Click to Edit',
-          onClick: () => resIdx === 0 && openEditFieldModal('room_no', room.id, resident.id, resident.data, room.data.room_no)
+          onClick: () => resIdx === 0 && openEditRoomModal(room.id)
         }),
         // Name
         el('td', { 
@@ -177,8 +178,11 @@ function renderResidentsTable() {
     for (let i = 0; i < emptyBeds; i++) {
       const emptyRow = el('tr', { className: 'empty-bed-row' }, [
         el('td', {
+          className: (occupiedCount === 0 && i === 0) ? 'editable-cell' : '',
           textContent: (occupiedCount === 0 && i === 0) ? `Room ${room.data.room_no}` : '',
-          style: (occupiedCount === 0 && i === 0) ? 'font-weight:600;color:var(--accent-hover);' : ''
+          style: (occupiedCount === 0 && i === 0) ? 'font-weight:600;color:var(--accent-hover);' : '',
+          'data-tooltip': (occupiedCount === 0 && i === 0) ? 'Click to Edit' : '',
+          onClick: () => (occupiedCount === 0 && i === 0) && openEditRoomModal(room.id)
         }),
         el('td', { colspan: '7' }, [
           el('button', {
@@ -264,7 +268,7 @@ async function savePaymentUpdate() {
 
     // Optimistic update: update in memory for instant UI
     const room = currentRooms.find(r => r.id === paymentRoomId);
-    const resident = room?.residents.find(r => r.id === paymentResidentId);
+    const resident = room ? room.residents.find(r => r.id === paymentResidentId) : null;
     if (resident) {
       resident.data.start_date = new Date(startVal);
       resident.data.end_date = new Date(endVal);
@@ -422,6 +426,241 @@ async function saveRoom() {
   }
 }
 
+// ===== Edit Room Modal =====
+let currentEditRoom = null;
+let editRoomResidents = []; // Temporary array to hold resident edits and deletions before saving
+
+function openEditRoomModal(roomId) {
+  const room = currentRooms.find(r => r.id === roomId);
+  if (!room) return;
+
+  currentEditRoom = room;
+  // Deep copy residents for editing in modal
+  editRoomResidents = room.residents.map(r => ({
+    id: r.id,
+    data: { ...r.data },
+    deleted: false // Track if marked for deletion in modal
+  }));
+
+  document.getElementById('edit-room-no').value = room.data.room_no;
+  document.getElementById('edit-room-cap').value = room.data.capacity;
+  document.getElementById('edit-room-error').style.display = 'none';
+
+  renderEditRoomResidents();
+
+  document.getElementById('edit-room-modal').classList.add('active');
+  
+  // Attach save handler, need to make sure we don't duplicate event listeners
+  const saveBtn = document.getElementById('save-edit-room-btn');
+  saveBtn.onclick = saveEditRoom;
+}
+
+function closeEditRoomModal() {
+  document.getElementById('edit-room-modal').classList.remove('active');
+  currentEditRoom = null;
+  editRoomResidents = [];
+}
+
+function renderEditRoomResidents() {
+  const listContainer = document.getElementById('edit-room-residents-list');
+  listContainer.innerHTML = '';
+
+  const activeResidents = editRoomResidents.filter(r => !r.deleted);
+
+  if (activeResidents.length === 0) {
+    listContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No residents in this room.</p>';
+    return;
+  }
+
+  activeResidents.forEach((res, index) => {
+    // Generate a unique ID prefix for fields
+    const prefix = `edit-res-${index}`;
+    
+    const item = document.createElement('div');
+    item.className = 'edit-room-resident-item';
+    
+    item.innerHTML = `
+      <div class="edit-room-resident-header">
+        <div class="edit-room-resident-title">Resident ${index + 1}</div>
+        <button class="edit-room-remove-btn" onclick="removeEditRoomResident('${res.id}')">Remove</button>
+      </div>
+      <div class="edit-room-resident-fields">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="${prefix}-name">Name *</label>
+          <input type="text" id="${prefix}-name" value="${res.data.name}" data-id="${res.id}" class="edit-res-field-name" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="${prefix}-phone">Phone</label>
+          <input type="text" id="${prefix}-phone" value="${res.data.phone || ''}" data-id="${res.id}" class="edit-res-field-phone" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="${prefix}-start">Start Date *</label>
+          <input type="date" id="${prefix}-start" value="${formatDateForInput(res.data.start_date)}" data-id="${res.id}" class="edit-res-field-start" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="${prefix}-end">End Date *</label>
+          <input type="date" id="${prefix}-end" value="${formatDateForInput(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+          <label for="${prefix}-remarks">Remarks</label>
+          <input type="text" id="${prefix}-remarks" value="${res.data.remarks || ''}" data-id="${res.id}" class="edit-res-field-remarks" />
+        </div>
+      </div>
+    `;
+    listContainer.appendChild(item);
+  });
+}
+
+function removeEditRoomResident(residentId) {
+  const resident = editRoomResidents.find(r => r.id === residentId);
+  if (resident) {
+    resident.deleted = true;
+    renderEditRoomResidents();
+    document.getElementById('edit-room-error').style.display = 'none'; // Clear any errors
+  }
+}
+
+function syncEditRoomResidentInputs() {
+  // Sync the current input values into the editRoomResidents array before validation/saving
+  const names = document.querySelectorAll('.edit-res-field-name');
+  const phones = document.querySelectorAll('.edit-res-field-phone');
+  const starts = document.querySelectorAll('.edit-res-field-start');
+  const ends = document.querySelectorAll('.edit-res-field-end');
+  const remarks = document.querySelectorAll('.edit-res-field-remarks');
+
+  names.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.name = input.value.trim();
+  });
+  phones.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.phone = input.value.trim();
+  });
+  starts.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.start_date = new Date(input.value);
+  });
+  ends.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.end_date = new Date(input.value);
+  });
+  remarks.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.remarks = input.value.trim();
+  });
+}
+
+async function saveEditRoom() {
+  if (!currentEditRoom) return;
+
+  const roomNo = document.getElementById('edit-room-no').value.trim();
+  const cap = parseInt(document.getElementById('edit-room-cap').value) || 0;
+  const errorDiv = document.getElementById('edit-room-error');
+
+  if (!roomNo || cap <= 0) {
+    errorDiv.textContent = 'Please enter room number and valid capacity.';
+    errorDiv.style.display = 'block';
+    return;
+  }
+
+  // Sync inputs first
+  syncEditRoomResidentInputs();
+
+  const activeResidentsCount = editRoomResidents.filter(r => !r.deleted).length;
+
+  if (cap < activeResidentsCount) {
+    errorDiv.textContent = `Capacity (${cap}) is lower than the current number of residents (${activeResidentsCount}). Please remove ${activeResidentsCount - cap} resident(s) before saving.`;
+    errorDiv.style.display = 'block';
+    return;
+  }
+
+  // Validate resident inputs
+  const activeResidents = editRoomResidents.filter(r => !r.deleted);
+  for (let res of activeResidents) {
+    if (!res.data.name) {
+      errorDiv.textContent = 'All residents must have a name.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    if (isNaN(res.data.start_date.getTime()) || isNaN(res.data.end_date.getTime())) {
+      errorDiv.textContent = 'All residents must have valid start and end dates.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+  }
+
+  const btn = document.getElementById('save-edit-room-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const batch = db.batch();
+    const roomRef = db.collection('properties').doc(currentPropertyId)
+                      .collection('rooms').doc(currentEditRoom.id);
+
+    // Update Room Details
+    batch.update(roomRef, {
+      room_no: roomNo,
+      capacity: cap
+    });
+
+    // Update Residents
+    for (let res of editRoomResidents) {
+      const resRef = roomRef.collection('residents').doc(res.id);
+      if (res.deleted) {
+        batch.delete(resRef);
+      } else {
+        batch.update(resRef, {
+          name: res.data.name,
+          phone: res.data.phone,
+          start_date: res.data.start_date,
+          end_date: res.data.end_date,
+          remarks: res.data.remarks
+        });
+      }
+    }
+
+    await batch.commit();
+
+    // Update local memory
+    currentEditRoom.data.room_no = roomNo;
+    currentEditRoom.data.capacity = cap;
+    
+    // Process local residents array
+    const newResidents = [];
+    for (let memRes of currentEditRoom.residents) {
+      const editRes = editRoomResidents.find(r => r.id === memRes.id);
+      if (editRes && !editRes.deleted) {
+        memRes.data.name = editRes.data.name;
+        memRes.data.phone = editRes.data.phone;
+        memRes.data.start_date = editRes.data.start_date;
+        memRes.data.end_date = editRes.data.end_date;
+        memRes.data.remarks = editRes.data.remarks;
+        newResidents.push(memRes);
+      }
+    }
+    currentEditRoom.residents = newResidents;
+
+    // Resort rooms just in case room_no changed
+    currentRooms.sort((a, b) => parseInt(a.data.room_no) - parseInt(b.data.room_no));
+
+    showToast('Room and residents updated successfully!');
+    closeEditRoomModal();
+    renderResidentsTable();
+  } catch (err) {
+    console.error('Error saving room edits:', err);
+    showToast('Failed to save room edits', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+}
+
 // ===== Edit Field Modal =====
 let editFieldData = {
   field: null,
@@ -466,7 +705,7 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
     case 'start_date':
       title.textContent = 'Edit Start Date';
       document.getElementById('edit-start-date-field').classList.add('active');
-      const startDate = value instanceof Date ? value : value?.toDate?.() || new Date(value);
+      const startDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
       document.getElementById('edit-start-date-input').value = formatDateForInput(startDate);
       setTimeout(() => document.getElementById('edit-start-date-input').focus(), 100);
       break;
@@ -474,7 +713,7 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
     case 'end_date':
       title.textContent = 'Edit End Date';
       document.getElementById('edit-end-date-field').classList.add('active');
-      const endDate = value instanceof Date ? value : value?.toDate?.() || new Date(value);
+      const endDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
       document.getElementById('edit-end-date-input').value = formatDateForInput(endDate);
       setTimeout(() => document.getElementById('edit-end-date-input').focus(), 100);
       break;
@@ -536,7 +775,7 @@ function validateEditField() {
       if (!value) error = 'End date is required';
       const startDate = new Date(editFieldData.residentData.start_date instanceof Date 
         ? editFieldData.residentData.start_date 
-        : editFieldData.residentData.start_date?.toDate?.() || editFieldData.residentData.start_date);
+        : (editFieldData.residentData.start_date && editFieldData.residentData.start_date.toDate ? editFieldData.residentData.start_date.toDate() : editFieldData.residentData.start_date));
       const endDate = new Date(value);
       if (endDate < startDate) {
         error = 'End date cannot be before start date';
@@ -579,7 +818,7 @@ async function saveEditedField() {
     } else {
       // Update resident field
       const room = currentRooms.find(r => r.id === editFieldData.roomId);
-      const resident = room?.residents.find(r => r.id === editFieldData.residentId);
+      const resident = room ? room.residents.find(r => r.id === editFieldData.residentId) : null;
       
       if (field === 'start_date' || field === 'end_date') {
         updateData[field] = new Date(value);
@@ -799,7 +1038,7 @@ function getLastReminderInfo(phone) {
  * Handle WhatsApp reminder click
  */
 async function handleWhatsAppReminder(residentData, roomData) {
-  const phone = residentData.phone?.trim();
+  const phone = residentData.phone ? residentData.phone.trim() : '';
   
   // Validation 1: Check if phone is provided
   if (!phone) {
@@ -839,9 +1078,9 @@ function showWhatsAppConfirmation(residentData, roomData) {
   
   const endDate = residentData.end_date instanceof Date 
     ? residentData.end_date 
-    : residentData.end_date?.toDate?.() || new Date(residentData.end_date);
+    : (residentData.end_date && residentData.end_date.toDate ? residentData.end_date.toDate() : new Date(residentData.end_date));
   
-  const roomNo = roomData?.room_no || 'N/A';
+  const roomNo = (roomData && roomData.room_no) ? roomData.room_no : 'N/A';
   const endDateStr = formatDate(endDate);
   
   dialog.innerHTML = `
@@ -895,7 +1134,7 @@ function showWhatsAppConfirmation(residentData, roomData) {
  * Send WhatsApp reminder
  */
 async function sendWhatsAppReminder(residentData, roomData) {
-  const phone = residentData.phone?.trim();
+  const phone = residentData.phone ? residentData.phone.trim() : '';
   const normalizedPhone = normalizePhoneNumber(phone);
   
   if (!normalizedPhone) {
@@ -906,10 +1145,10 @@ async function sendWhatsAppReminder(residentData, roomData) {
   try {
     // Build message
     const name = residentData.name || 'User';
-    const roomNo = roomData?.room_no || 'N/A';
+    const roomNo = (roomData && roomData.room_no) ? roomData.room_no : 'N/A';
     const endDate = residentData.end_date instanceof Date 
       ? residentData.end_date 
-      : residentData.end_date?.toDate?.() || new Date(residentData.end_date);
+      : (residentData.end_date && residentData.end_date.toDate ? residentData.end_date.toDate() : new Date(residentData.end_date));
     const endDateStr = formatDate(endDate);
     
     const message = `Hello ${name},\n\nYour room payment is due soon.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease complete your payment on time.\n\nThank you.`;
