@@ -99,15 +99,15 @@ function renderResidentsTable() {
             el('div', { className: 'contact-phone' }, [
               el('span', { textContent: resident.data.phone || '—' })
             ]),
-            // WhatsApp button - only show for UPCOMING status
-            ...(status === 'upcoming' && resident.data.phone ? [
+            // WhatsApp button - show for all statuses
+            ...(resident.data.phone ? [
               el('button', {
                 className: 'whatsapp-btn',
-                title: 'Send Payment Reminder',
-                'aria-label': 'Send WhatsApp reminder',
+                title: 'WhatsApp Contact',
+                'aria-label': 'Contact on WhatsApp',
                 onClick: (e) => {
                   e.stopPropagation();
-                  handleWhatsAppReminder(resident.data, room.data);
+                  handleWhatsAppReminder(resident.data, room.data, status);
                 }
               }, [
                 el('img', {
@@ -1037,7 +1037,7 @@ function getLastReminderInfo(phone) {
 /**
  * Handle WhatsApp reminder click
  */
-async function handleWhatsAppReminder(residentData, roomData) {
+async function handleWhatsAppReminder(residentData, roomData, status) {
   const phone = residentData.phone ? residentData.phone.trim() : '';
   
   // Validation 1: Check if phone is provided
@@ -1052,21 +1052,21 @@ async function handleWhatsAppReminder(residentData, roomData) {
     return;
   }
   
-  // Validation 3: Check cooldown
-  if (isInCooldown(phone)) {
+  // Validation 3: Check cooldown (skip for paid status as it's just opening chat)
+  if (status !== 'paid' && isInCooldown(phone)) {
     const remaining = getRemainingCooldown(phone);
     showToast(`Please wait ${remaining}s before sending another reminder`, 'warning');
     return;
   }
   
   // Show confirmation popup
-  showWhatsAppConfirmation(residentData, roomData);
+  showWhatsAppConfirmation(residentData, roomData, status);
 }
 
 /**
  * Show confirmation popup before sending reminder
  */
-function showWhatsAppConfirmation(residentData, roomData) {
+function showWhatsAppConfirmation(residentData, roomData, status) {
   const name = residentData.name || 'User';
   
   // Create custom confirmation popup
@@ -1083,11 +1083,24 @@ function showWhatsAppConfirmation(residentData, roomData) {
   const roomNo = (roomData && roomData.room_no) ? roomData.room_no : 'N/A';
   const endDateStr = formatDate(endDate);
   
+  let popupTitle = 'Send Payment Reminder';
+  let popupMessage = `Send payment reminder to <strong>${name}</strong>?`;
+  let btnText = 'Send Reminder';
+  
+  if (status === 'paid') {
+    popupTitle = 'Contact via WhatsApp';
+    popupMessage = `Open WhatsApp chat with <strong>${name}</strong>?`;
+    btnText = 'Open WhatsApp';
+  } else if (status === 'pending') {
+    popupTitle = 'Send Pending Payment Reminder';
+    popupMessage = `Send pending payment reminder to <strong>${name}</strong>?`;
+  }
+
   dialog.innerHTML = `
     <div class="whatsapp-confirm-content">
       <div class="whatsapp-confirm-icon">💬</div>
-      <h3>Send Payment Reminder</h3>
-      <p class="confirm-message">Send payment reminder to <strong>${name}</strong>?</p>
+      <h3>${popupTitle}</h3>
+      <p class="confirm-message">${popupMessage}</p>
       
       <div class="reminder-details">
         <div class="detail-item">
@@ -1102,7 +1115,7 @@ function showWhatsAppConfirmation(residentData, roomData) {
       
       <div class="whatsapp-confirm-actions">
         <button class="btn btn-ghost cancel-btn">Cancel</button>
-        <button class="btn btn-primary send-btn">Send Reminder</button>
+        <button class="btn btn-primary send-btn">${btnText}</button>
       </div>
     </div>
   `;
@@ -1117,7 +1130,7 @@ function showWhatsAppConfirmation(residentData, roomData) {
   // Handle send
   dialog.querySelector('.send-btn').addEventListener('click', async () => {
     overlay.remove();
-    await sendWhatsAppReminder(residentData, roomData);
+    await sendWhatsAppReminder(residentData, roomData, status);
   });
   
   // Close on overlay click
@@ -1133,7 +1146,7 @@ function showWhatsAppConfirmation(residentData, roomData) {
 /**
  * Send WhatsApp reminder
  */
-async function sendWhatsAppReminder(residentData, roomData) {
+async function sendWhatsAppReminder(residentData, roomData, status) {
   const phone = residentData.phone ? residentData.phone.trim() : '';
   const normalizedPhone = normalizePhoneNumber(phone);
   
@@ -1151,13 +1164,19 @@ async function sendWhatsAppReminder(residentData, roomData) {
       : (residentData.end_date && residentData.end_date.toDate ? residentData.end_date.toDate() : new Date(residentData.end_date));
     const endDateStr = formatDate(endDate);
     
-    const message = `Hello ${name},\n\nYour room payment is due soon.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease complete your payment on time.\n\nThank you.`;
-    
-    // Encode message for URL
-    const encodedMessage = encodeURIComponent(message);
-    
-    // WhatsApp URL
-    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
+    let message = '';
+    let whatsappUrl = `https://wa.me/${normalizedPhone}`;
+
+    if (status === 'upcoming') {
+      message = `Hello ${name},\n\nYour room payment is due soon.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease complete your payment on time.\n\nThank you.`;
+    } else if (status === 'pending') {
+      message = `Hello ${name},\n\nThis is a reminder that your room payment is currently overdue.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease clear your pending dues as soon as possible.\n\nThank you.`;
+    }
+
+    if (message) {
+      const encodedMessage = encodeURIComponent(message);
+      whatsappUrl += `?text=${encodedMessage}`;
+    }
     
     // Save to reminder history BEFORE opening to ensure it's saved even if window opens
     saveReminderToHistory(phone, name);

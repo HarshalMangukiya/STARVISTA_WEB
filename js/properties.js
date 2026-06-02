@@ -145,7 +145,7 @@ async function saveProperty() {
 
     const propRef = await db.collection('properties').add({
       name: name,
-      description: desc,
+      address: desc,
       image_url: imageUrl,
       owner_id: auth.currentUser.uid,
       total_rooms: 0,
@@ -177,19 +177,19 @@ let editPropertyData = {
 
 function openEditPropertyModal(id, data) {
   console.log('openEditPropertyModal called with:', id, data);
-  
+
   editPropertyData = { id, data: { ...data } };
-  
+
   try {
     document.getElementById('edit-prop-name').value = data.name;
-    document.getElementById('edit-prop-desc').value = data.description || '';
-    
+    document.getElementById('edit-prop-desc').value = data.address || '';
+
     const preview = document.getElementById('edit-prop-image-preview');
     const fileInput = document.getElementById('edit-prop-image-file');
-    
+
     // Clear preview but keep the file input
     preview.innerHTML = '';
-    
+
     if (data.image_url) {
       const img = document.createElement('img');
       img.src = data.image_url;
@@ -199,20 +199,20 @@ function openEditPropertyModal(id, data) {
       const icon = document.createElement('div');
       icon.className = 'upload-icon';
       icon.textContent = '📷';
-      
+
       const text = document.createElement('div');
       text.className = 'upload-text';
       text.textContent = 'Click to upload hostel image';
-      
+
       preview.appendChild(icon);
       preview.appendChild(text);
     }
-    
+
     // Re-append the file input
     preview.appendChild(fileInput);
     fileInput.value = '';
     window._selectedEditPropertyImage = null;
-    
+
     const modal = document.getElementById('edit-property-modal');
     console.log('Modal element found:', modal);
     modal.classList.add('active');
@@ -260,7 +260,7 @@ async function saveEditedProperty() {
 
     await db.collection('properties').doc(editPropertyData.id).update({
       name: name,
-      description: desc,
+      address: desc,
       image_url: imageUrl
     });
 
@@ -296,7 +296,7 @@ function closeDeletePropertyModal() {
 async function confirmDeleteProperty() {
   const confirmBtn = document.getElementById('delete-property-confirm');
   confirmBtn.disabled = true;
-  
+
   const textSpan = document.getElementById('delete-prop-btn-text');
   const loader = document.getElementById('delete-prop-loader');
   textSpan.style.display = 'none';
@@ -345,7 +345,7 @@ async function confirmDeleteProperty() {
   } catch (err) {
     console.error('Error deleting property:', err);
     showToast('Failed to delete property', 'error');
-    
+
     confirmBtn.disabled = false;
     textSpan.style.display = 'inline';
     loader.style.display = 'none';
@@ -356,7 +356,7 @@ async function confirmDeleteProperty() {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOMContentLoaded - properties.js initialized');
   console.log('Edit modal element:', document.getElementById('edit-property-modal'));
-  
+
   document.getElementById('fab-add-property').addEventListener('click', openAddPropertyModal);
   document.getElementById('add-property-close').addEventListener('click', closeAddPropertyModal);
 
