@@ -1150,7 +1150,7 @@ body {
   width: 28px;
   height: 28px;
   padding: 0;
-  background: #25D366;
+  background: #fff;
   color: white;
   border: none;
   border-radius: 50%;
@@ -1176,7 +1176,7 @@ body {
 .whatsapp-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
-  background: #20BA61;
+  background: #fff;
 }
 
 .whatsapp-btn:active {
