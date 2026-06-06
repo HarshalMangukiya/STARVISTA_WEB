@@ -8,9 +8,14 @@
 function getPaymentStatus(endDate) {
   if (!endDate) return 'pending';
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
   const end = endDate instanceof Date ? endDate : endDate.toDate();
-  const diffMs = end.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  const endMidnight = new Date(end);
+  endMidnight.setHours(0, 0, 0, 0);
+
+  const diffMs = endMidnight.getTime() - now.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) return 'pending';
   if (diffDays <= 7) return 'upcoming';
@@ -18,7 +23,7 @@ function getPaymentStatus(endDate) {
 }
 
 /**
- * Format a date to dd/mm/yyyy
+ * Format a date to dd-mm-yyyy
  */
 function formatDate(date) {
   if (!date) return '—';
@@ -26,7 +31,42 @@ function formatDate(date) {
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Parse a date string in dd-mm-yyyy, dd/mm/yyyy, or yyyy-mm-dd format to a Date object
+ */
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  
+  // If it's already a Date object
+  if (dateStr instanceof Date) return dateStr;
+  
+  // If it is in yyyy-mm-dd format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr);
+  }
+  
+  // If it is in dd-mm-yyyy or dd/mm/yyyy format
+  const parts = dateStr.split(/[-/]/);
+  if (parts.length === 3) {
+    // If first part is 4 digits, it might be yyyy-mm-dd or yyyy/mm/dd
+    if (parts[0].length === 4) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    } else {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    }
+  }
+  
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed;
 }
 
 /**

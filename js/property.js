@@ -10,7 +10,7 @@ async function loadPropertyDetail(propertyId) {
   const tableBody = document.getElementById('residents-body');
 
   header.textContent = 'Loading...';
-  tableBody.innerHTML = '<tr><td colspan="7"><div class="loader"><div class="spinner"></div></div></td></tr>';
+  tableBody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner"></div></div></td></tr>';
 
   try {
     // Load property
@@ -50,14 +50,14 @@ function renderResidentsTable() {
   tableBody.innerHTML = '';
 
   if (currentRooms.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">🛏️</div><h3>No rooms configured</h3></div></td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="icon">🛏️</div><h3>No rooms configured</h3></div></td></tr>';
     return;
   }
 
   currentRooms.forEach((room, roomIdx) => {
     // Add room gap before each room (except first)
     if (roomIdx > 0) {
-      const gapRow = el('tr', { className: 'room-gap' }, [el('td', { colspan: '7' })]);
+      const gapRow = el('tr', { className: 'room-gap' }, [el('td', { colspan: '9' })]);
       tableBody.appendChild(gapRow);
     }
 
@@ -150,6 +150,11 @@ function renderResidentsTable() {
             onClick: () => openPaymentModal(room.id, resident.id, resident.data)
           })
         ]),
+        // Rent
+        el('td', {
+          textContent: room.data.monthly_rent ? `₹${room.data.monthly_rent}` : '—',
+          style: 'color:var(--text-secondary);font-weight:500;'
+        }),
         // Remark
         el('td', { 
           className: 'editable-cell',
@@ -184,7 +189,7 @@ function renderResidentsTable() {
           'data-tooltip': (occupiedCount === 0 && i === 0) ? 'Click to Edit' : '',
           onClick: () => (occupiedCount === 0 && i === 0) && openEditRoomModal(room.id)
         }),
-        el('td', { colspan: '7' }, [
+        el('td', { colspan: '8' }, [
           el('button', {
             className: 'add-resident-btn',
             innerHTML: '+ Add Resident',
@@ -211,8 +216,21 @@ function openPaymentModal(roomId, residentId, residentData) {
   document.getElementById('payment-resident-name').textContent = residentData.name;
 
   const startDate = residentData.end_date ? (residentData.end_date instanceof Date ? residentData.end_date : residentData.end_date.toDate()) : new Date();
-  document.getElementById('payment-start').value = formatDateForInput(startDate);
-  document.getElementById('payment-end').value = '';
+  
+  const startInput = document.getElementById('payment-start');
+  const endInput = document.getElementById('payment-end');
+  
+  if (startInput._flatpickr) {
+    startInput._flatpickr.setDate(startDate);
+  } else {
+    startInput.value = formatDate(startDate);
+  }
+
+  if (endInput._flatpickr) {
+    endInput._flatpickr.setDate('');
+  } else {
+    endInput.value = '';
+  }
 
   // Deselect quick buttons
   document.querySelectorAll('.payment-quick-btns .btn').forEach(b => b.classList.remove('active'));
@@ -233,14 +251,29 @@ function handlePaymentQuickBtn(months) {
     ? (paymentResidentData.end_date instanceof Date ? paymentResidentData.end_date : paymentResidentData.end_date.toDate())
     : new Date();
 
-  document.getElementById('payment-start').value = formatDateForInput(startDate);
+  const startInput = document.getElementById('payment-start');
+  if (startInput._flatpickr) {
+    startInput._flatpickr.setDate(startDate);
+  } else {
+    startInput.value = formatDate(startDate);
+  }
 
+  const endInput = document.getElementById('payment-end');
   if (months === 'custom') {
-    document.getElementById('payment-end').value = '';
-    document.getElementById('payment-end').focus();
+    if (endInput._flatpickr) {
+      endInput._flatpickr.setDate('');
+      endInput._flatpickr.open();
+    } else {
+      endInput.value = '';
+      endInput.focus();
+    }
   } else {
     const endDate = addMonths(startDate, months);
-    document.getElementById('payment-end').value = formatDateForInput(endDate);
+    if (endInput._flatpickr) {
+      endInput._flatpickr.setDate(endDate);
+    } else {
+      endInput.value = formatDate(endDate);
+    }
   }
 }
 
@@ -262,16 +295,16 @@ async function savePaymentUpdate() {
       .collection('rooms').doc(paymentRoomId)
       .collection('residents').doc(paymentResidentId)
       .update({
-        start_date: new Date(startVal),
-        end_date: new Date(endVal)
+        start_date: parseDate(startVal),
+        end_date: parseDate(endVal)
       });
 
     // Optimistic update: update in memory for instant UI
     const room = currentRooms.find(r => r.id === paymentRoomId);
     const resident = room ? room.residents.find(r => r.id === paymentResidentId) : null;
     if (resident) {
-      resident.data.start_date = new Date(startVal);
-      resident.data.end_date = new Date(endVal);
+      resident.data.start_date = parseDate(startVal);
+      resident.data.end_date = parseDate(endVal);
     }
     
     showToast('Payment updated!');
@@ -300,8 +333,20 @@ function openAddResidentModal(roomId, roomData) {
   document.getElementById('res-email').value = '';
   document.getElementById('res-phone').value = '';
   document.getElementById('res-gender').value = 'male';
-  document.getElementById('res-start').value = formatDateForInput(new Date());
-  document.getElementById('res-end').value = formatDateForInput(addMonths(new Date(), 1));
+  const resStart = document.getElementById('res-start');
+  const resEnd = document.getElementById('res-end');
+
+  if (resStart._flatpickr) {
+    resStart._flatpickr.setDate(new Date());
+  } else {
+    resStart.value = formatDate(new Date());
+  }
+
+  if (resEnd._flatpickr) {
+    resEnd._flatpickr.setDate(addMonths(new Date(), 1));
+  } else {
+    resEnd.value = formatDate(addMonths(new Date(), 1));
+  }
   document.getElementById('res-remarks').value = '';
 
   overlay.classList.add('active');
@@ -341,8 +386,8 @@ async function saveResident() {
         email,
         phone,
         gender,
-        start_date: new Date(startDate),
-        end_date: new Date(endDate),
+        start_date: parseDate(startDate),
+        end_date: parseDate(endDate),
         remarks
       });
 
@@ -351,7 +396,7 @@ async function saveResident() {
     if (room) {
       room.residents.push({
         id: resRef.id,
-        data: { name, email, phone, gender, start_date: new Date(startDate), end_date: new Date(endDate), remarks }
+        data: { name, email, phone, gender, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
       });
     }
     
@@ -444,6 +489,7 @@ function openEditRoomModal(roomId) {
 
   document.getElementById('edit-room-no').value = room.data.room_no;
   document.getElementById('edit-room-cap').value = room.data.capacity;
+  document.getElementById('edit-room-rent').value = room.data.monthly_rent || '';
   document.getElementById('edit-room-error').style.display = 'none';
 
   renderEditRoomResidents();
@@ -495,11 +541,11 @@ function renderEditRoomResidents() {
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label for="${prefix}-start">Start Date *</label>
-          <input type="date" id="${prefix}-start" value="${formatDateForInput(res.data.start_date)}" data-id="${res.id}" class="edit-res-field-start" />
+          <input type="text" id="${prefix}-start" value="${formatDate(res.data.start_date)}" data-id="${res.id}" class="edit-res-field-start" placeholder="dd-mm-yyyy" />
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label for="${prefix}-end">End Date *</label>
-          <input type="date" id="${prefix}-end" value="${formatDateForInput(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" />
+          <input type="text" id="${prefix}-end" value="${formatDate(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" placeholder="dd-mm-yyyy" />
         </div>
         <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
           <label for="${prefix}-remarks">Remarks</label>
@@ -508,6 +554,11 @@ function renderEditRoomResidents() {
       </div>
     `;
     listContainer.appendChild(item);
+  });
+
+  // Initialize Flatpickr on dynamic inputs
+  listContainer.querySelectorAll('.edit-res-field-start, .edit-res-field-end').forEach(input => {
+    flatpickr(input, { dateFormat: 'd-m-Y', allowInput: true });
   });
 }
 
@@ -541,12 +592,12 @@ function syncEditRoomResidentInputs() {
   starts.forEach(input => {
     const id = input.getAttribute('data-id');
     const res = editRoomResidents.find(r => r.id === id);
-    if (res) res.data.start_date = new Date(input.value);
+    if (res) res.data.start_date = parseDate(input.value);
   });
   ends.forEach(input => {
     const id = input.getAttribute('data-id');
     const res = editRoomResidents.find(r => r.id === id);
-    if (res) res.data.end_date = new Date(input.value);
+    if (res) res.data.end_date = parseDate(input.value);
   });
   remarks.forEach(input => {
     const id = input.getAttribute('data-id');
@@ -560,6 +611,7 @@ async function saveEditRoom() {
 
   const roomNo = document.getElementById('edit-room-no').value.trim();
   const cap = parseInt(document.getElementById('edit-room-cap').value) || 0;
+  const rent = parseInt(document.getElementById('edit-room-rent').value) || 0;
   const errorDiv = document.getElementById('edit-room-error');
 
   if (!roomNo || cap <= 0) {
@@ -606,7 +658,8 @@ async function saveEditRoom() {
     // Update Room Details
     batch.update(roomRef, {
       room_no: roomNo,
-      capacity: cap
+      capacity: cap,
+      monthly_rent: rent
     });
 
     // Update Residents
@@ -630,6 +683,7 @@ async function saveEditRoom() {
     // Update local memory
     currentEditRoom.data.room_no = roomNo;
     currentEditRoom.data.capacity = cap;
+    currentEditRoom.data.monthly_rent = rent;
     
     // Process local residents array
     const newResidents = [];
@@ -706,16 +760,26 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
       title.textContent = 'Edit Start Date';
       document.getElementById('edit-start-date-field').classList.add('active');
       const startDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
-      document.getElementById('edit-start-date-input').value = formatDateForInput(startDate);
-      setTimeout(() => document.getElementById('edit-start-date-input').focus(), 100);
+      const editStartInput = document.getElementById('edit-start-date-input');
+      if (editStartInput._flatpickr) {
+        editStartInput._flatpickr.setDate(startDate);
+      } else {
+        editStartInput.value = formatDate(startDate);
+      }
+      setTimeout(() => editStartInput.focus(), 100);
       break;
       
     case 'end_date':
       title.textContent = 'Edit End Date';
       document.getElementById('edit-end-date-field').classList.add('active');
       const endDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
-      document.getElementById('edit-end-date-input').value = formatDateForInput(endDate);
-      setTimeout(() => document.getElementById('edit-end-date-input').focus(), 100);
+      const editEndInput = document.getElementById('edit-end-date-input');
+      if (editEndInput._flatpickr) {
+        editEndInput._flatpickr.setDate(endDate);
+      } else {
+        editEndInput.value = formatDate(endDate);
+      }
+      setTimeout(() => editEndInput.focus(), 100);
       break;
       
     case 'remarks':
@@ -773,11 +837,11 @@ function validateEditField() {
     case 'end_date':
       value = document.getElementById('edit-end-date-input').value;
       if (!value) error = 'End date is required';
-      const startDate = new Date(editFieldData.residentData.start_date instanceof Date 
+      const startDate = editFieldData.residentData.start_date instanceof Date 
         ? editFieldData.residentData.start_date 
-        : (editFieldData.residentData.start_date && editFieldData.residentData.start_date.toDate ? editFieldData.residentData.start_date.toDate() : editFieldData.residentData.start_date));
-      const endDate = new Date(value);
-      if (endDate < startDate) {
+        : (editFieldData.residentData.start_date && editFieldData.residentData.start_date.toDate ? editFieldData.residentData.start_date.toDate() : new Date(editFieldData.residentData.start_date));
+      const endDate = parseDate(value);
+      if (endDate && startDate && endDate < startDate) {
         error = 'End date cannot be before start date';
       }
       break;
@@ -821,8 +885,8 @@ async function saveEditedField() {
       const resident = room ? room.residents.find(r => r.id === editFieldData.residentId) : null;
       
       if (field === 'start_date' || field === 'end_date') {
-        updateData[field] = new Date(value);
-        if (resident) resident.data[field] = new Date(value);
+        updateData[field] = parseDate(value);
+        if (resident) resident.data[field] = parseDate(value);
       } else {
         updateData[field] = value;
         if (resident) resident.data[field] = value;
@@ -1052,13 +1116,6 @@ async function handleWhatsAppReminder(residentData, roomData, status) {
     return;
   }
   
-  // Validation 3: Check cooldown (skip for paid status as it's just opening chat)
-  if (status !== 'paid' && isInCooldown(phone)) {
-    const remaining = getRemainingCooldown(phone);
-    showToast(`Please wait ${remaining}s before sending another reminder`, 'warning');
-    return;
-  }
-  
   // Show confirmation popup
   showWhatsAppConfirmation(residentData, roomData, status);
 }
@@ -1202,6 +1259,14 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
 
 // ===== Init event listeners =====
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize Flatpickr on date inputs
+  flatpickr('#payment-start', { dateFormat: 'd-m-Y', allowInput: true });
+  flatpickr('#payment-end', { dateFormat: 'd-m-Y', allowInput: true });
+  flatpickr('#res-start', { dateFormat: 'd-m-Y', allowInput: true });
+  flatpickr('#res-end', { dateFormat: 'd-m-Y', allowInput: true });
+  flatpickr('#edit-start-date-input', { dateFormat: 'd-m-Y', allowInput: true });
+  flatpickr('#edit-end-date-input', { dateFormat: 'd-m-Y', allowInput: true });
+
   document.getElementById('back-btn').addEventListener('click', () => navigateTo('#/properties'));
 
   // Payment modal

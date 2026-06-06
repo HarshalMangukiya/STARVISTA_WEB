@@ -8,6 +8,9 @@
     content="Track hostel resident payments efficiently. Manage properties, rooms, and resident payment statuses." />
   <title>StarVista — Hostel Payment Tracker</title>
   <link rel="stylesheet" href="css/style.css" />
+  <!-- Flatpickr (Consistent dd-mm-yyyy Date Picker) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css" />
 </head>
 
 <body>
@@ -82,6 +85,7 @@
               <th>START DATE</th>
               <th>END DATE</th>
               <th>STATUS</th>
+              <th>RENT</th>
               <th>REMARK</th>
               <th>ACTION</th>
             </tr>
@@ -250,6 +254,10 @@
             <label for="edit-room-cap">Capacity (Beds) *</label>
             <input type="number" id="edit-room-cap" placeholder="e.g. 4" min="1" />
           </div>
+          <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
+            <label for="edit-room-rent">Monthly Rent (₹) *</label>
+            <input type="number" id="edit-room-rent" placeholder="e.g. 14000" min="0" />
+          </div>
         </div>
 
         <div id="edit-room-error" class="auth-error" style="display: none; margin-bottom: 15px;"></div>
@@ -296,11 +304,11 @@
       <div class="date-manual">
         <div class="form-group">
           <label for="payment-start">Start Date</label>
-          <input type="date" id="payment-start" placeholder="dd/mm/yyyy" />
+          <input type="text" id="payment-start" placeholder="dd-mm-yyyy" />
         </div>
         <div class="form-group">
           <label for="payment-end">End Date</label>
-          <input type="date" id="payment-end" placeholder="dd/mm/yyyy" />
+          <input type="text" id="payment-end" placeholder="dd-mm-yyyy" />
         </div>
       </div>
 
@@ -348,11 +356,11 @@
       <div class="date-manual">
         <div class="form-group">
           <label for="res-start">Start Date *</label>
-          <input type="date" id="res-start" placeholder="dd/mm/yyyy" />
+          <input type="text" id="res-start" placeholder="dd-mm-yyyy" />
         </div>
         <div class="form-group">
           <label for="res-end">End Date *</label>
-          <input type="date" id="res-end" placeholder="dd/mm/yyyy" />
+          <input type="text" id="res-end" placeholder="dd-mm-yyyy" />
         </div>
       </div>
 
@@ -394,14 +402,14 @@
         <!-- Start Date Field -->
         <div id="edit-start-date-field" class="edit-field-form">
           <label for="edit-start-date-input">Start Date</label>
-          <input type="date" id="edit-start-date-input" placeholder="dd/mm/yyyy" />
+          <input type="text" id="edit-start-date-input" placeholder="dd-mm-yyyy" />
           <small class="field-hint">Select start date for the resident</small>
         </div>
 
         <!-- End Date Field -->
         <div id="edit-end-date-field" class="edit-field-form">
           <label for="edit-end-date-input">End Date</label>
-          <input type="date" id="edit-end-date-input" placeholder="dd/mm/yyyy" />
+          <input type="text" id="edit-end-date-input" placeholder="dd-mm-yyyy" />
           <small class="field-hint">End date cannot be before start date</small>
         </div>
 
@@ -469,6 +477,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Flatpickr Library -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
   <!-- App Scripts -->
   <script src="js/utils.js"></script>
