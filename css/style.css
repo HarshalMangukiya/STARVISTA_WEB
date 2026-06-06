@@ -1658,3 +1658,23 @@ body {
     top: -30px;
   }
 }
+
+/* Occupancy Badge beside Property Name in Header */
+.detail-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.occupancy-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}

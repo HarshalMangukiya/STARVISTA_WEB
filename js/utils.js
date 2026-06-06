@@ -45,7 +45,8 @@ function parseDate(dateStr) {
   
   // If it is in yyyy-mm-dd format
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(dateStr);
+    const parts = dateStr.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
   }
   
   // If it is in dd-mm-yyyy or dd/mm/yyyy format
@@ -69,13 +70,13 @@ function parseDate(dateStr) {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * Format date for input[type=date]
- */
 function formatDateForInput(date) {
   if (!date) return '';
   const d = date instanceof Date ? date : date.toDate();
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

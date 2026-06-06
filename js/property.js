@@ -10,6 +10,8 @@ async function loadPropertyDetail(propertyId) {
   const tableBody = document.getElementById('residents-body');
 
   header.textContent = 'Loading...';
+  const occupancyEl = document.getElementById('detail-occupancy');
+  if (occupancyEl) occupancyEl.textContent = '';
   tableBody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner"></div></div></td></tr>';
 
   try {
@@ -46,6 +48,18 @@ async function loadPropertyDetail(propertyId) {
 }
 
 function renderResidentsTable() {
+  // Calculate total occupancy
+  let totalCapacity = 0;
+  let totalOccupied = 0;
+  currentRooms.forEach(room => {
+    totalCapacity += parseInt(room.data.capacity) || 0;
+    totalOccupied += room.residents ? room.residents.length : 0;
+  });
+  const occupancyEl = document.getElementById('detail-occupancy');
+  if (occupancyEl) {
+    occupancyEl.textContent = `${totalOccupied}/${totalCapacity} occupied`;
+  }
+
   const tableBody = document.getElementById('residents-body');
   tableBody.innerHTML = '';
 
@@ -77,8 +91,8 @@ function renderResidentsTable() {
           onClick: () => resIdx === 0 && openEditRoomModal(room.id)
         }),
         // Name
-        el('td', { 
-          className: 'name-cell editable-cell', 
+        el('td', {
+          className: 'name-cell editable-cell',
           textContent: resident.data.name,
           'data-tooltip': 'Click to Edit',
           onClick: () => openEditFieldModal('name', room.id, resident.id, resident.data, resident.data.name)
@@ -87,7 +101,7 @@ function renderResidentsTable() {
         el('td', {
           className: 'contact-cell'
         }, [
-          el('div', { 
+          el('div', {
             className: 'contact-container',
             onClick: (e) => {
               // Only open edit if clicking on the phone span, not the WhatsApp button
@@ -156,9 +170,9 @@ function renderResidentsTable() {
           style: 'color:var(--text-secondary);font-weight:500;'
         }),
         // Remark
-        el('td', { 
+        el('td', {
           className: 'editable-cell',
-          textContent: resident.data.remarks || '—', 
+          textContent: resident.data.remarks || '—',
           style: 'color:var(--text-secondary);max-width:150px;overflow:hidden;text-overflow:ellipsis;',
           'data-tooltip': 'Click to Edit',
           onClick: () => openEditFieldModal('remarks', room.id, resident.id, resident.data, resident.data.remarks || '')
@@ -216,21 +230,12 @@ function openPaymentModal(roomId, residentId, residentData) {
   document.getElementById('payment-resident-name').textContent = residentData.name;
 
   const startDate = residentData.end_date ? (residentData.end_date instanceof Date ? residentData.end_date : residentData.end_date.toDate()) : new Date();
-  
+
   const startInput = document.getElementById('payment-start');
   const endInput = document.getElementById('payment-end');
-  
-  if (startInput._flatpickr) {
-    startInput._flatpickr.setDate(startDate);
-  } else {
-    startInput.value = formatDate(startDate);
-  }
 
-  if (endInput._flatpickr) {
-    endInput._flatpickr.setDate('');
-  } else {
-    endInput.value = '';
-  }
+  startInput.value = formatDateForInput(startDate);
+  endInput.value = '';
 
   // Deselect quick buttons
   document.querySelectorAll('.payment-quick-btns .btn').forEach(b => b.classList.remove('active'));
@@ -252,28 +257,15 @@ function handlePaymentQuickBtn(months) {
     : new Date();
 
   const startInput = document.getElementById('payment-start');
-  if (startInput._flatpickr) {
-    startInput._flatpickr.setDate(startDate);
-  } else {
-    startInput.value = formatDate(startDate);
-  }
+  startInput.value = formatDateForInput(startDate);
 
   const endInput = document.getElementById('payment-end');
   if (months === 'custom') {
-    if (endInput._flatpickr) {
-      endInput._flatpickr.setDate('');
-      endInput._flatpickr.open();
-    } else {
-      endInput.value = '';
-      endInput.focus();
-    }
+    endInput.value = '';
+    endInput.focus();
   } else {
     const endDate = addMonths(startDate, months);
-    if (endInput._flatpickr) {
-      endInput._flatpickr.setDate(endDate);
-    } else {
-      endInput.value = formatDate(endDate);
-    }
+    endInput.value = formatDateForInput(endDate);
   }
 }
 
@@ -306,7 +298,7 @@ async function savePaymentUpdate() {
       resident.data.start_date = parseDate(startVal);
       resident.data.end_date = parseDate(endVal);
     }
-    
+
     showToast('Payment updated!');
     closePaymentModal();
     renderResidentsTable(); // Fast re-render instead of full reload
@@ -336,17 +328,8 @@ function openAddResidentModal(roomId, roomData) {
   const resStart = document.getElementById('res-start');
   const resEnd = document.getElementById('res-end');
 
-  if (resStart._flatpickr) {
-    resStart._flatpickr.setDate(new Date());
-  } else {
-    resStart.value = formatDate(new Date());
-  }
-
-  if (resEnd._flatpickr) {
-    resEnd._flatpickr.setDate(addMonths(new Date(), 1));
-  } else {
-    resEnd.value = formatDate(addMonths(new Date(), 1));
-  }
+  resStart.value = formatDateForInput(new Date());
+  resEnd.value = formatDateForInput(addMonths(new Date(), 1));
   document.getElementById('res-remarks').value = '';
 
   overlay.classList.add('active');
@@ -399,7 +382,7 @@ async function saveResident() {
         data: { name, email, phone, gender, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
       });
     }
-    
+
     showToast('Resident added!');
     closeAddResidentModal();
     renderResidentsTable(); // Fast re-render
@@ -445,7 +428,7 @@ async function saveRoom() {
         capacity: cap,
         monthly_rent: rent
       });
-      
+
     // Add to memory and sort for instant UI
     currentRooms.push({
       id: roomRef.id,
@@ -453,7 +436,7 @@ async function saveRoom() {
       residents: []
     });
     currentRooms.sort((a, b) => parseInt(a.data.room_no) - parseInt(b.data.room_no));
-    
+
     // Update the total_rooms count
     await db.collection('properties').doc(currentPropertyId).update({
       total_rooms: firebase.firestore.FieldValue.increment(1)
@@ -495,7 +478,7 @@ function openEditRoomModal(roomId) {
   renderEditRoomResidents();
 
   document.getElementById('edit-room-modal').classList.add('active');
-  
+
   // Attach save handler, need to make sure we don't duplicate event listeners
   const saveBtn = document.getElementById('save-edit-room-btn');
   saveBtn.onclick = saveEditRoom;
@@ -521,10 +504,10 @@ function renderEditRoomResidents() {
   activeResidents.forEach((res, index) => {
     // Generate a unique ID prefix for fields
     const prefix = `edit-res-${index}`;
-    
+
     const item = document.createElement('div');
     item.className = 'edit-room-resident-item';
-    
+
     item.innerHTML = `
       <div class="edit-room-resident-header">
         <div class="edit-room-resident-title">Resident ${index + 1}</div>
@@ -541,11 +524,11 @@ function renderEditRoomResidents() {
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label for="${prefix}-start">Start Date *</label>
-          <input type="text" id="${prefix}-start" value="${formatDate(res.data.start_date)}" data-id="${res.id}" class="edit-res-field-start" placeholder="dd-mm-yyyy" />
+          <input type="date" id="${prefix}-start" value="${formatDateForInput(res.data.start_date)}" data-id="${res.id}" class="edit-res-field-start" />
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label for="${prefix}-end">End Date *</label>
-          <input type="text" id="${prefix}-end" value="${formatDate(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" placeholder="dd-mm-yyyy" />
+          <input type="date" id="${prefix}-end" value="${formatDateForInput(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" />
         </div>
         <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
           <label for="${prefix}-remarks">Remarks</label>
@@ -554,11 +537,6 @@ function renderEditRoomResidents() {
       </div>
     `;
     listContainer.appendChild(item);
-  });
-
-  // Initialize Flatpickr on dynamic inputs
-  listContainer.querySelectorAll('.edit-res-field-start, .edit-res-field-end').forEach(input => {
-    flatpickr(input, { dateFormat: 'd-m-Y', allowInput: true });
   });
 }
 
@@ -653,7 +631,7 @@ async function saveEditRoom() {
   try {
     const batch = db.batch();
     const roomRef = db.collection('properties').doc(currentPropertyId)
-                      .collection('rooms').doc(currentEditRoom.id);
+      .collection('rooms').doc(currentEditRoom.id);
 
     // Update Room Details
     batch.update(roomRef, {
@@ -684,7 +662,7 @@ async function saveEditRoom() {
     currentEditRoom.data.room_no = roomNo;
     currentEditRoom.data.capacity = cap;
     currentEditRoom.data.monthly_rent = rent;
-    
+
     // Process local residents array
     const newResidents = [];
     for (let memRes of currentEditRoom.residents) {
@@ -726,62 +704,54 @@ let editFieldData = {
 
 function openEditFieldModal(field, roomId, residentId, residentData, value) {
   editFieldData = { field, roomId, residentId, residentData, value };
-  
+
   const overlay = document.getElementById('edit-field-modal');
   const title = document.getElementById('edit-field-title');
-  
+
   // Hide all field forms
   document.querySelectorAll('.edit-field-form').forEach(f => f.classList.remove('active'));
-  
+
   // Show appropriate field form and set title
-  switch(field) {
+  switch (field) {
     case 'room_no':
       title.textContent = 'Edit Room Number';
       document.getElementById('edit-room-field').classList.add('active');
       document.getElementById('edit-room-input').value = value;
       setTimeout(() => document.getElementById('edit-room-input').focus(), 100);
       break;
-      
+
     case 'name':
       title.textContent = 'Edit Resident Name';
       document.getElementById('edit-name-field').classList.add('active');
       document.getElementById('edit-name-input').value = value;
       setTimeout(() => document.getElementById('edit-name-input').focus(), 100);
       break;
-      
+
     case 'phone':
       title.textContent = 'Edit Contact Number';
       document.getElementById('edit-contact-field').classList.add('active');
       document.getElementById('edit-contact-input').value = value;
       setTimeout(() => document.getElementById('edit-contact-input').focus(), 100);
       break;
-      
+
     case 'start_date':
       title.textContent = 'Edit Start Date';
       document.getElementById('edit-start-date-field').classList.add('active');
       const startDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
       const editStartInput = document.getElementById('edit-start-date-input');
-      if (editStartInput._flatpickr) {
-        editStartInput._flatpickr.setDate(startDate);
-      } else {
-        editStartInput.value = formatDate(startDate);
-      }
+      editStartInput.value = formatDateForInput(startDate);
       setTimeout(() => editStartInput.focus(), 100);
       break;
-      
+
     case 'end_date':
       title.textContent = 'Edit End Date';
       document.getElementById('edit-end-date-field').classList.add('active');
       const endDate = value instanceof Date ? value : (value && value.toDate ? value.toDate() : new Date(value));
       const editEndInput = document.getElementById('edit-end-date-input');
-      if (editEndInput._flatpickr) {
-        editEndInput._flatpickr.setDate(endDate);
-      } else {
-        editEndInput.value = formatDate(endDate);
-      }
+      editEndInput.value = formatDateForInput(endDate);
       setTimeout(() => editEndInput.focus(), 100);
       break;
-      
+
     case 'remarks':
       title.textContent = 'Edit Remark';
       document.getElementById('edit-remark-field').classList.add('active');
@@ -791,7 +761,7 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
       setTimeout(() => remarkInput.focus(), 100);
       break;
   }
-  
+
   overlay.classList.add('active');
 }
 
@@ -810,72 +780,72 @@ function validateEditField() {
   const field = editFieldData.field;
   let value = '';
   let error = '';
-  
-  switch(field) {
+
+  switch (field) {
     case 'room_no':
       value = document.getElementById('edit-room-input').value.trim();
       if (!value) error = 'Room number cannot be empty';
       break;
-      
+
     case 'name':
       value = document.getElementById('edit-name-input').value.trim();
       if (!value) error = 'Name cannot be empty';
       break;
-      
+
     case 'phone':
       value = document.getElementById('edit-contact-input').value.trim();
       if (value && !/^\d+$/.test(value.replace(/[\s\-]/g, ''))) {
         error = 'Contact number must contain only digits';
       }
       break;
-      
+
     case 'start_date':
       value = document.getElementById('edit-start-date-input').value;
       if (!value) error = 'Start date is required';
       break;
-      
+
     case 'end_date':
       value = document.getElementById('edit-end-date-input').value;
       if (!value) error = 'End date is required';
-      const startDate = editFieldData.residentData.start_date instanceof Date 
-        ? editFieldData.residentData.start_date 
+      const startDate = editFieldData.residentData.start_date instanceof Date
+        ? editFieldData.residentData.start_date
         : (editFieldData.residentData.start_date && editFieldData.residentData.start_date.toDate ? editFieldData.residentData.start_date.toDate() : new Date(editFieldData.residentData.start_date));
       const endDate = parseDate(value);
       if (endDate && startDate && endDate < startDate) {
         error = 'End date cannot be before start date';
       }
       break;
-      
+
     case 'remarks':
       value = document.getElementById('edit-remark-input').value.trim();
       break;
   }
-  
+
   if (error) {
     showToast(error, 'error');
     return null;
   }
-  
+
   return value;
 }
 
 async function saveEditedField() {
   const value = validateEditField();
   if (value === null) return;
-  
+
   const btn = document.getElementById('edit-field-confirm');
   btn.disabled = true;
   btn.textContent = 'Updating...';
-  
+
   try {
     const updateData = {};
     const field = editFieldData.field;
-    
+
     if (field === 'room_no') {
       // Update room number
       const room = currentRooms.find(r => r.id === editFieldData.roomId);
       if (room) room.data.room_no = value;
-      
+
       await db.collection('properties').doc(currentPropertyId)
         .collection('rooms').doc(editFieldData.roomId)
         .update({ room_no: value });
@@ -883,7 +853,7 @@ async function saveEditedField() {
       // Update resident field
       const room = currentRooms.find(r => r.id === editFieldData.roomId);
       const resident = room ? room.residents.find(r => r.id === editFieldData.residentId) : null;
-      
+
       if (field === 'start_date' || field === 'end_date') {
         updateData[field] = parseDate(value);
         if (resident) resident.data[field] = parseDate(value);
@@ -891,13 +861,13 @@ async function saveEditedField() {
         updateData[field] = value;
         if (resident) resident.data[field] = value;
       }
-      
+
       await db.collection('properties').doc(currentPropertyId)
         .collection('rooms').doc(editFieldData.roomId)
         .collection('residents').doc(editFieldData.residentId)
         .update(updateData);
     }
-    
+
     showToast('Data Updated Successfully', 'success');
     closeEditFieldModal();
     renderResidentsTable(); // Fast re-render
@@ -920,16 +890,16 @@ let deleteResidentData = {
 
 function openDeleteResidentModal(roomId, residentId, residentData) {
   deleteResidentData = { roomId, residentId, residentData };
-  
+
   const modal = document.getElementById('delete-resident-modal');
   document.getElementById('delete-resident-name').textContent = residentData.name;
-  
+
   // Reset button state
   const confirmBtn = document.getElementById('delete-resident-confirm');
   confirmBtn.disabled = false;
   document.getElementById('delete-btn-text').style.display = 'inline';
   document.getElementById('delete-btn-loader').style.display = 'none';
-  
+
   modal.classList.add('active');
 }
 
@@ -942,33 +912,33 @@ async function confirmDeleteResident() {
   const confirmBtn = document.getElementById('delete-resident-confirm');
   const textSpan = document.getElementById('delete-btn-text');
   const loader = document.getElementById('delete-btn-loader');
-  
+
   // Show loading state
   confirmBtn.disabled = true;
   textSpan.style.display = 'none';
   loader.style.display = 'inline-block';
-  
+
   try {
     // Delete from Firebase
     await db.collection('properties').doc(currentPropertyId)
       .collection('rooms').doc(deleteResidentData.roomId)
       .collection('residents').doc(deleteResidentData.residentId)
       .delete();
-    
+
     // Remove from memory
     const room = currentRooms.find(r => r.id === deleteResidentData.roomId);
     if (room) {
       room.residents = room.residents.filter(r => r.id !== deleteResidentData.residentId);
     }
-    
+
     showToast('Resident deleted successfully!', 'success');
     closeDeleteResidentModal();
     renderResidentsTable(); // Re-render table
-    
+
   } catch (err) {
     console.error('Error deleting resident:', err);
     showToast('Failed to delete resident', 'error');
-    
+
     // Reset button state on error
     confirmBtn.disabled = false;
     textSpan.style.display = 'inline';
@@ -994,12 +964,12 @@ function isValidPhoneNumber(phone) {
 function normalizePhoneNumber(phone) {
   if (!phone) return null;
   let cleaned = phone.replace(/\D/g, '');
-  
+
   // If 10 digits, add India country code
   if (cleaned.length === 10) {
     cleaned = '91' + cleaned;
   }
-  
+
   return cleaned;
 }
 
@@ -1009,13 +979,13 @@ function normalizePhoneNumber(phone) {
 function isInCooldown(phone) {
   const reminders = getReminderHistory();
   const lastReminder = reminders[phone];
-  
+
   if (!lastReminder) return false;
-  
+
   const now = Date.now();
   const timeDiff = now - lastReminder.timestamp;
   const cooldownMs = 30 * 1000; // 30 seconds
-  
+
   return timeDiff < cooldownMs;
 }
 
@@ -1025,13 +995,13 @@ function isInCooldown(phone) {
 function getRemainingCooldown(phone) {
   const reminders = getReminderHistory();
   const lastReminder = reminders[phone];
-  
+
   if (!lastReminder) return 0;
-  
+
   const now = Date.now();
   const timeDiff = now - lastReminder.timestamp;
   const cooldownMs = 30 * 1000;
-  
+
   if (timeDiff < cooldownMs) {
     return Math.ceil((cooldownMs - timeDiff) / 1000);
   }
@@ -1074,16 +1044,16 @@ function saveReminderToHistory(phone, residentName) {
 function getLastReminderInfo(phone) {
   const reminders = getReminderHistory();
   const reminder = reminders[phone];
-  
+
   if (!reminder) return null;
-  
+
   const lastDate = new Date(reminder.date);
   const now = new Date();
   const diffMs = now.getTime() - lastDate.getTime();
   const diffMins = Math.floor(diffMs / (1000 * 60));
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
+
   let timeStr = '';
   if (diffMins < 1) {
     timeStr = 'just now';
@@ -1094,7 +1064,7 @@ function getLastReminderInfo(phone) {
   } else {
     timeStr = `${diffDays}d ago`;
   }
-  
+
   return `Last reminder sent ${timeStr}`;
 }
 
@@ -1103,19 +1073,19 @@ function getLastReminderInfo(phone) {
  */
 async function handleWhatsAppReminder(residentData, roomData, status) {
   const phone = residentData.phone ? residentData.phone.trim() : '';
-  
+
   // Validation 1: Check if phone is provided
   if (!phone) {
     showToast('Phone number not available', 'error');
     return;
   }
-  
+
   // Validation 2: Validate phone format
   if (!isValidPhoneNumber(phone)) {
     showToast('Invalid phone number format', 'error');
     return;
   }
-  
+
   // Show confirmation popup
   showWhatsAppConfirmation(residentData, roomData, status);
 }
@@ -1125,25 +1095,25 @@ async function handleWhatsAppReminder(residentData, roomData, status) {
  */
 function showWhatsAppConfirmation(residentData, roomData, status) {
   const name = residentData.name || 'User';
-  
+
   // Create custom confirmation popup
   const overlay = document.createElement('div');
   overlay.className = 'whatsapp-confirm-overlay';
-  
+
   const dialog = document.createElement('div');
   dialog.className = 'whatsapp-confirm-dialog';
-  
-  const endDate = residentData.end_date instanceof Date 
-    ? residentData.end_date 
+
+  const endDate = residentData.end_date instanceof Date
+    ? residentData.end_date
     : (residentData.end_date && residentData.end_date.toDate ? residentData.end_date.toDate() : new Date(residentData.end_date));
-  
+
   const roomNo = (roomData && roomData.room_no) ? roomData.room_no : 'N/A';
   const endDateStr = formatDate(endDate);
-  
+
   let popupTitle = 'Send Payment Reminder';
   let popupMessage = `Send payment reminder to <strong>${name}</strong>?`;
   let btnText = 'Send Reminder';
-  
+
   if (status === 'paid') {
     popupTitle = 'Contact via WhatsApp';
     popupMessage = `Open WhatsApp chat with <strong>${name}</strong>?`;
@@ -1176,27 +1146,27 @@ function showWhatsAppConfirmation(residentData, roomData, status) {
       </div>
     </div>
   `;
-  
+
   overlay.appendChild(dialog);
-  
+
   // Handle cancel
   dialog.querySelector('.cancel-btn').addEventListener('click', () => {
     overlay.remove();
   });
-  
+
   // Handle send
   dialog.querySelector('.send-btn').addEventListener('click', async () => {
     overlay.remove();
     await sendWhatsAppReminder(residentData, roomData, status);
   });
-  
+
   // Close on overlay click
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) {
       overlay.remove();
     }
   });
-  
+
   document.body.appendChild(overlay);
 }
 
@@ -1206,21 +1176,21 @@ function showWhatsAppConfirmation(residentData, roomData, status) {
 async function sendWhatsAppReminder(residentData, roomData, status) {
   const phone = residentData.phone ? residentData.phone.trim() : '';
   const normalizedPhone = normalizePhoneNumber(phone);
-  
+
   if (!normalizedPhone) {
     showToast('Invalid phone number', 'error');
     return;
   }
-  
+
   try {
     // Build message
     const name = residentData.name || 'User';
     const roomNo = (roomData && roomData.room_no) ? roomData.room_no : 'N/A';
-    const endDate = residentData.end_date instanceof Date 
-      ? residentData.end_date 
+    const endDate = residentData.end_date instanceof Date
+      ? residentData.end_date
       : (residentData.end_date && residentData.end_date.toDate ? residentData.end_date.toDate() : new Date(residentData.end_date));
     const endDateStr = formatDate(endDate);
-    
+
     let message = '';
     let whatsappUrl = `https://wa.me/${normalizedPhone}`;
 
@@ -1234,13 +1204,13 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
       const encodedMessage = encodeURIComponent(message);
       whatsappUrl += `?text=${encodedMessage}`;
     }
-    
+
     // Save to reminder history BEFORE opening to ensure it's saved even if window opens
     saveReminderToHistory(phone, name);
-    
+
     // Open WhatsApp in new tab/window
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
+
     if (isMobile) {
       // On mobile, use intent to open WhatsApp app
       window.location.href = whatsappUrl;
@@ -1248,9 +1218,9 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
       // On desktop, open WhatsApp Web
       window.open(whatsappUrl, '_blank', 'width=600,height=800');
     }
-    
+
     showToast('Opening WhatsApp...', 'success');
-    
+
   } catch (err) {
     console.error('Error opening WhatsApp:', err);
     showToast('Failed to open WhatsApp', 'error');
@@ -1259,14 +1229,6 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
 
 // ===== Init event listeners =====
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Flatpickr on date inputs
-  flatpickr('#payment-start', { dateFormat: 'd-m-Y', allowInput: true });
-  flatpickr('#payment-end', { dateFormat: 'd-m-Y', allowInput: true });
-  flatpickr('#res-start', { dateFormat: 'd-m-Y', allowInput: true });
-  flatpickr('#res-end', { dateFormat: 'd-m-Y', allowInput: true });
-  flatpickr('#edit-start-date-input', { dateFormat: 'd-m-Y', allowInput: true });
-  flatpickr('#edit-end-date-input', { dateFormat: 'd-m-Y', allowInput: true });
-
   document.getElementById('back-btn').addEventListener('click', () => navigateTo('#/properties'));
 
   // Payment modal
