@@ -1883,3 +1883,42 @@ body {
     margin-left: auto;
   }
 }
+
+/* Payment Mode Selector Buttons & Icons */
+.payment-mode-btns .btn {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.payment-mode-btns .btn:hover {
+  background: var(--bg-glass-hover);
+  border-color: var(--accent);
+}
+
+.payment-mode-btns .btn.active {
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.payment-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: all var(--transition);
+}
+
+.payment-mode-icon:hover {
+  transform: scale(1.1);
+}

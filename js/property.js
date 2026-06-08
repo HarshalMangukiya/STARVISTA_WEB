@@ -1,9 +1,11 @@
-// ===== Property Detail Module =====
+const ONLINE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-credit-card" style="vertical-align: middle; color: var(--accent);"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`;
+const CASH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-dollar-sign" style="vertical-align: middle; color: #16a34a;"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`;
 
 let currentPropertyId = null;
 let currentPropertyData = null;
 let currentRooms = []; // { id, data, residents: [{id, data}] }
 let currentStatusFilter = null; // 'paid', 'upcoming', 'pending' or null
+let selectedPaymentMode = null; // Track selected payment mode in modal
 
 async function loadPropertyDetail(propertyId) {
   currentPropertyId = propertyId;
@@ -233,11 +235,20 @@ function renderResidentsTable() {
         ]),
         // Payment status
         el('td', {}, [
-          el('span', {
-            className: `badge badge-${status}`,
-            textContent: status,
-            onClick: () => openPaymentModal(room.id, resident.id, resident.data)
-          })
+          el('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
+            el('span', {
+              className: `badge badge-${status}`,
+              textContent: status,
+              onClick: () => openPaymentModal(room.id, resident.id, resident.data)
+            }),
+            ...(status === 'paid' && resident.data.payment_mode ? [
+              el('span', {
+                className: 'payment-mode-icon',
+                title: `${resident.data.payment_mode} Payment`,
+                innerHTML: resident.data.payment_mode === 'Online' ? ONLINE_SVG : CASH_SVG
+              })
+            ] : [])
+          ])
         ]),
         // Rent
         el('td', {
@@ -325,7 +336,25 @@ function openPaymentModal(roomId, residentId, residentData) {
   // Deselect quick buttons
   document.querySelectorAll('.payment-quick-btns .btn').forEach(b => b.classList.remove('active'));
 
+  // Load payment mode (defaulting to Online if not set)
+  selectedPaymentMode = residentData.payment_mode || 'Online';
+  updatePaymentModeButtons();
+
   overlay.classList.add('active');
+}
+
+function updatePaymentModeButtons() {
+  const cashBtn = document.getElementById('pay-mode-cash');
+  const onlineBtn = document.getElementById('pay-mode-online');
+  if (cashBtn && onlineBtn) {
+    cashBtn.classList.remove('active');
+    onlineBtn.classList.remove('active');
+    if (selectedPaymentMode === 'Cash') {
+      cashBtn.classList.add('active');
+    } else {
+      onlineBtn.classList.add('active');
+    }
+  }
 }
 
 function closePaymentModal() {
@@ -373,7 +402,8 @@ async function savePaymentUpdate() {
       .collection('residents').doc(paymentResidentId)
       .update({
         start_date: parseDate(startVal),
-        end_date: parseDate(endVal)
+        end_date: parseDate(endVal),
+        payment_mode: selectedPaymentMode
       });
 
     // Optimistic update: update in memory for instant UI
@@ -382,6 +412,7 @@ async function savePaymentUpdate() {
     if (resident) {
       resident.data.start_date = parseDate(startVal);
       resident.data.end_date = parseDate(endVal);
+      resident.data.payment_mode = selectedPaymentMode;
     }
 
     showToast('Payment updated!');
@@ -461,6 +492,7 @@ async function saveResident() {
         phone,
         gender,
         monthly_rent: rent,
+        payment_mode: 'Online',
         start_date: parseDate(startDate),
         end_date: parseDate(endDate),
         remarks
@@ -471,7 +503,7 @@ async function saveResident() {
     if (room) {
       room.residents.push({
         id: resRef.id,
-        data: { name, email, phone, gender, monthly_rent: rent, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
+        data: { name, email, phone, gender, monthly_rent: rent, payment_mode: 'Online', start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
       });
     }
 
@@ -1400,6 +1432,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pay-3m').addEventListener('click', () => handlePaymentQuickBtn(3));
   document.getElementById('pay-6m').addEventListener('click', () => handlePaymentQuickBtn(6));
   document.getElementById('pay-custom').addEventListener('click', () => handlePaymentQuickBtn('custom'));
+
+  // Payment mode selectors in Payment modal
+  document.getElementById('pay-mode-cash').addEventListener('click', () => {
+    selectedPaymentMode = 'Cash';
+    updatePaymentModeButtons();
+  });
+  document.getElementById('pay-mode-online').addEventListener('click', () => {
+    selectedPaymentMode = 'Online';
+    updatePaymentModeButtons();
+  });
 
   // Add resident modal
   document.getElementById('add-resident-modal-close').addEventListener('click', closeAddResidentModal);
