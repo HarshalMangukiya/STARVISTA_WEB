@@ -9,6 +9,14 @@ async function loadPropertyDetail(propertyId) {
   const header = document.getElementById('detail-title');
   const tableBody = document.getElementById('residents-body');
 
+  // Clear search input on property detail load
+  const searchInput = document.getElementById('room-search-input');
+  if (searchInput) {
+    searchInput.value = '';
+    const clearBtn = document.getElementById('room-search-clear');
+    if (clearBtn) clearBtn.classList.remove('active');
+  }
+
   header.textContent = 'Loading...';
   const occupancyEl = document.getElementById('detail-occupancy');
   if (occupancyEl) occupancyEl.textContent = '';
@@ -68,28 +76,73 @@ function renderResidentsTable() {
     return;
   }
 
-  currentRooms.forEach((room, roomIdx) => {
+  const searchInput = document.getElementById('room-search-input');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let visibleRooms = currentRooms;
+
+  if (query) {
+    visibleRooms = [];
+    currentRooms.forEach(room => {
+      const roomNoMatch = room.data.room_no.toString().toLowerCase().includes(query);
+      const matchingResidents = room.residents.filter(res => 
+        res.data.name.toLowerCase().includes(query)
+      );
+
+      if (roomNoMatch) {
+        // If room matches, show all residents and beds
+        visibleRooms.push({
+          ...room,
+          filtered: false
+        });
+      } else if (matchingResidents.length > 0) {
+        // If resident matches, show only matching residents
+        visibleRooms.push({
+          ...room,
+          residents: matchingResidents,
+          filtered: true
+        });
+      }
+    });
+  }
+
+  if (visibleRooms.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div><h3>No matching rooms or residents found</h3></div></td></tr>';
+    return;
+  }
+
+  let visibleRoomCount = 0;
+
+  visibleRooms.forEach((room) => {
     // Add room gap before each room (except first)
-    if (roomIdx > 0) {
+    if (visibleRoomCount > 0) {
       const gapRow = el('tr', { className: 'room-gap' }, [el('td', { colspan: '9' })]);
       tableBody.appendChild(gapRow);
     }
+    visibleRoomCount++;
 
     const occupiedCount = room.residents.length;
-    const emptyBeds = room.data.capacity - occupiedCount;
+    const emptyBeds = room.filtered ? 0 : Math.max(0, room.data.capacity - occupiedCount);
+
+    let renderedRoomLabel = false;
 
     // Resident rows
-    room.residents.forEach((resident, resIdx) => {
+    room.residents.forEach((resident) => {
       const status = getPaymentStatus(resident.data.end_date);
+      const isFirstRow = !renderedRoomLabel;
+      const roomTdAttrs = {
+        className: isFirstRow ? 'editable-cell' : '',
+        textContent: isFirstRow ? `Room ${room.data.room_no}` : '',
+        style: isFirstRow ? 'font-weight:600;color:var(--accent-hover);' : '',
+        'data-tooltip': isFirstRow ? 'Click to Edit' : ''
+      };
+      if (isFirstRow) {
+        roomTdAttrs.onClick = () => openEditRoomModal(room.id);
+      }
+
       const row = el('tr', {}, [
-        // Room — only show on first row of this room
-        el('td', {
-          className: 'editable-cell',
-          textContent: resIdx === 0 ? `Room ${room.data.room_no}` : '',
-          style: resIdx === 0 ? 'font-weight:600;color:var(--accent-hover);' : '',
-          'data-tooltip': 'Click to Edit',
-          onClick: () => resIdx === 0 && openEditRoomModal(room.id)
-        }),
+        // Room — show on first visible row of this room
+        el('td', roomTdAttrs),
         // Name
         el('td', {
           className: 'name-cell editable-cell',
@@ -190,19 +243,25 @@ function renderResidentsTable() {
           })
         ])
       ]);
+      renderedRoomLabel = true;
       tableBody.appendChild(row);
     });
 
     // Empty bed rows
     for (let i = 0; i < emptyBeds; i++) {
+      const isFirstRow = !renderedRoomLabel;
+      const roomTdAttrs = {
+        className: isFirstRow ? 'editable-cell' : '',
+        textContent: isFirstRow ? `Room ${room.data.room_no}` : '',
+        style: isFirstRow ? 'font-weight:600;color:var(--accent-hover);' : '',
+        'data-tooltip': isFirstRow ? 'Click to Edit' : ''
+      };
+      if (isFirstRow) {
+        roomTdAttrs.onClick = () => openEditRoomModal(room.id);
+      }
+
       const emptyRow = el('tr', { className: 'empty-bed-row' }, [
-        el('td', {
-          className: (occupiedCount === 0 && i === 0) ? 'editable-cell' : '',
-          textContent: (occupiedCount === 0 && i === 0) ? `Room ${room.data.room_no}` : '',
-          style: (occupiedCount === 0 && i === 0) ? 'font-weight:600;color:var(--accent-hover);' : '',
-          'data-tooltip': (occupiedCount === 0 && i === 0) ? 'Click to Edit' : '',
-          onClick: () => (occupiedCount === 0 && i === 0) && openEditRoomModal(room.id)
-        }),
+        el('td', roomTdAttrs),
         el('td', { colspan: '8' }, [
           el('button', {
             className: 'add-resident-btn',
@@ -211,6 +270,7 @@ function renderResidentsTable() {
           })
         ])
       ]);
+      renderedRoomLabel = true;
       tableBody.appendChild(emptyRow);
     }
   });
@@ -1230,6 +1290,28 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
 // ===== Init event listeners =====
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('back-btn').addEventListener('click', () => navigateTo('#/properties'));
+
+  // Search input listeners
+  const searchInput = document.getElementById('room-search-input');
+  const searchClear = document.getElementById('room-search-clear');
+  if (searchInput && searchClear) {
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim();
+      if (query) {
+        searchClear.classList.add('active');
+      } else {
+        searchClear.classList.remove('active');
+      }
+      renderResidentsTable();
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.classList.remove('active');
+      renderResidentsTable();
+      searchInput.focus();
+    });
+  }
 
   // Payment modal
   document.getElementById('payment-modal-close').addEventListener('click', closePaymentModal);

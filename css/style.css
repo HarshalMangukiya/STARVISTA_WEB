@@ -533,6 +533,70 @@ body {
   gap: 10px;
 }
 
+/* Search Wrapper styling */
+.search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin-left: 16px;
+}
+
+.search-input {
+  width: 100%;
+  height: 38px;
+  padding: 8px 36px 8px 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  transition: var(--transition);
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.search-icon-svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  display: none;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.search-clear-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-glass-hover);
+}
+
+.search-clear-btn.active {
+  display: block;
+}
+
 /* Residents Table */
 .residents-wrapper {
   width: 100%;
@@ -1731,4 +1795,21 @@ body {
 .forgot-link:hover {
   color: var(--accent-hover);
   text-decoration: underline;
+}
+
+/* Mobile search responsive rules */
+@media (max-width: 600px) {
+  .detail-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .search-wrapper {
+    order: 3;
+    max-width: 100%;
+    margin-left: 0;
+    width: 100%;
+  }
+  .detail-actions {
+    margin-left: auto;
+  }
 }
