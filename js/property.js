@@ -3,6 +3,7 @@
 let currentPropertyId = null;
 let currentPropertyData = null;
 let currentRooms = []; // { id, data, residents: [{id, data}] }
+let currentStatusFilter = null; // 'paid', 'upcoming', 'pending' or null
 
 async function loadPropertyDetail(propertyId) {
   currentPropertyId = propertyId;
@@ -16,6 +17,10 @@ async function loadPropertyDetail(propertyId) {
     const clearBtn = document.getElementById('room-search-clear');
     if (clearBtn) clearBtn.classList.remove('active');
   }
+
+  // Clear status filters on property detail load
+  currentStatusFilter = null;
+  document.querySelectorAll('.status-filter-btn').forEach(btn => btn.classList.remove('active'));
 
   header.textContent = 'Loading...';
   const occupancyEl = document.getElementById('detail-occupancy');
@@ -81,25 +86,42 @@ function renderResidentsTable() {
 
   let visibleRooms = currentRooms;
 
-  if (query) {
+  if (query || currentStatusFilter) {
     visibleRooms = [];
     currentRooms.forEach(room => {
-      const roomNoMatch = room.data.room_no.toString().toLowerCase().includes(query);
-      const matchingResidents = room.residents.filter(res => 
-        res.data.name.toLowerCase().includes(query)
-      );
+      // Filter residents inside the room based on search query and status filter
+      const filteredResidents = room.residents.filter(res => {
+        // 1. Status Filter Check
+        const status = getPaymentStatus(res.data.end_date);
+        if (currentStatusFilter && status !== currentStatusFilter) {
+          return false;
+        }
 
-      if (roomNoMatch) {
-        // If room matches, show all residents and beds
+        // 2. Query Check (Name or Room Number)
+        const roomNoMatch = query ? room.data.room_no.toString().toLowerCase().includes(query) : false;
+        if (query && !roomNoMatch) {
+          return res.data.name.toLowerCase().includes(query);
+        }
+
+        return true;
+      });
+
+      const roomNoMatch = query ? room.data.room_no.toString().toLowerCase().includes(query) : false;
+
+      // Show the full room (all residents, empty beds) ONLY if:
+      // - The room matches by number
+      // - AND there is NO status filter active (status filters hide empty beds since they have no payment status)
+      const showFullRoom = query && roomNoMatch && !currentStatusFilter;
+
+      if (showFullRoom) {
         visibleRooms.push({
           ...room,
           filtered: false
         });
-      } else if (matchingResidents.length > 0) {
-        // If resident matches, show only matching residents
+      } else if (filteredResidents.length > 0) {
         visibleRooms.push({
           ...room,
-          residents: matchingResidents,
+          residents: filteredResidents,
           filtered: true
         });
       }
@@ -219,8 +241,11 @@ function renderResidentsTable() {
         ]),
         // Rent
         el('td', {
-          textContent: room.data.monthly_rent ? `₹${room.data.monthly_rent}` : '—',
-          style: 'color:var(--text-secondary);font-weight:500;'
+          className: 'editable-cell',
+          textContent: resident.data.monthly_rent ? `₹${resident.data.monthly_rent}` : '—',
+          style: 'color:var(--text-secondary);font-weight:500;',
+          'data-tooltip': 'Click to Edit',
+          onClick: () => openEditFieldModal('monthly_rent', room.id, resident.id, resident.data, resident.data.monthly_rent || 0)
         }),
         // Remark
         el('td', {
@@ -380,11 +405,12 @@ function openAddResidentModal(roomId, roomData) {
   addResidentRoomData = roomData;
 
   const overlay = document.getElementById('add-resident-modal');
-  document.getElementById('resident-room-label').textContent = `Room ${roomData.room_no} — ₹${roomData.monthly_rent}/month`;
+  document.getElementById('resident-room-label').textContent = `Room ${roomData.room_no}`;
   document.getElementById('res-name').value = '';
   document.getElementById('res-email').value = '';
   document.getElementById('res-phone').value = '';
   document.getElementById('res-gender').value = 'male';
+  document.getElementById('res-rent').value = '';
   const resStart = document.getElementById('res-start');
   const resEnd = document.getElementById('res-end');
 
@@ -404,12 +430,17 @@ async function saveResident() {
   const email = document.getElementById('res-email').value.trim();
   const phone = document.getElementById('res-phone').value.trim();
   const gender = document.getElementById('res-gender').value;
+  const rent = parseInt(document.getElementById('res-rent').value) || 0;
   const startDate = document.getElementById('res-start').value;
   const endDate = document.getElementById('res-end').value;
   const remarks = document.getElementById('res-remarks').value.trim();
 
   if (!name) {
     showToast('Please enter resident name', 'error');
+    return;
+  }
+  if (rent < 0) {
+    showToast('Please enter a valid monthly rent', 'error');
     return;
   }
   if (!startDate || !endDate) {
@@ -429,6 +460,7 @@ async function saveResident() {
         email,
         phone,
         gender,
+        monthly_rent: rent,
         start_date: parseDate(startDate),
         end_date: parseDate(endDate),
         remarks
@@ -439,7 +471,7 @@ async function saveResident() {
     if (room) {
       room.residents.push({
         id: resRef.id,
-        data: { name, email, phone, gender, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
+        data: { name, email, phone, gender, monthly_rent: rent, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
       });
     }
 
@@ -460,7 +492,6 @@ function openAddRoomModal() {
   document.getElementById('add-room-modal').classList.add('active');
   document.getElementById('new-room-no').value = '';
   document.getElementById('new-room-cap').value = '';
-  document.getElementById('new-room-rent').value = '';
 }
 
 function closeAddRoomModal() {
@@ -470,7 +501,6 @@ function closeAddRoomModal() {
 async function saveRoom() {
   const roomNo = document.getElementById('new-room-no').value.trim();
   const cap = parseInt(document.getElementById('new-room-cap').value) || 0;
-  const rent = parseInt(document.getElementById('new-room-rent').value) || 0;
 
   if (!roomNo || cap <= 0) {
     showToast('Please enter room number and valid capacity', 'error');
@@ -485,14 +515,13 @@ async function saveRoom() {
     const roomRef = await db.collection('properties').doc(currentPropertyId)
       .collection('rooms').add({
         room_no: roomNo,
-        capacity: cap,
-        monthly_rent: rent
+        capacity: cap
       });
 
     // Add to memory and sort for instant UI
     currentRooms.push({
       id: roomRef.id,
-      data: { room_no: roomNo, capacity: cap, monthly_rent: rent },
+      data: { room_no: roomNo, capacity: cap },
       residents: []
     });
     currentRooms.sort((a, b) => parseInt(a.data.room_no) - parseInt(b.data.room_no));
@@ -532,7 +561,6 @@ function openEditRoomModal(roomId) {
 
   document.getElementById('edit-room-no').value = room.data.room_no;
   document.getElementById('edit-room-cap').value = room.data.capacity;
-  document.getElementById('edit-room-rent').value = room.data.monthly_rent || '';
   document.getElementById('edit-room-error').style.display = 'none';
 
   renderEditRoomResidents();
@@ -590,7 +618,11 @@ function renderEditRoomResidents() {
           <label for="${prefix}-end">End Date *</label>
           <input type="date" id="${prefix}-end" value="${formatDateForInput(res.data.end_date)}" data-id="${res.id}" class="edit-res-field-end" />
         </div>
-        <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="${prefix}-rent">Monthly Rent (₹) *</label>
+          <input type="number" id="${prefix}-rent" value="${res.data.monthly_rent || 0}" data-id="${res.id}" class="edit-res-field-rent" min="0" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
           <label for="${prefix}-remarks">Remarks</label>
           <input type="text" id="${prefix}-remarks" value="${res.data.remarks || ''}" data-id="${res.id}" class="edit-res-field-remarks" />
         </div>
@@ -615,6 +647,7 @@ function syncEditRoomResidentInputs() {
   const phones = document.querySelectorAll('.edit-res-field-phone');
   const starts = document.querySelectorAll('.edit-res-field-start');
   const ends = document.querySelectorAll('.edit-res-field-end');
+  const rents = document.querySelectorAll('.edit-res-field-rent');
   const remarks = document.querySelectorAll('.edit-res-field-remarks');
 
   names.forEach(input => {
@@ -637,6 +670,11 @@ function syncEditRoomResidentInputs() {
     const res = editRoomResidents.find(r => r.id === id);
     if (res) res.data.end_date = parseDate(input.value);
   });
+  rents.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const res = editRoomResidents.find(r => r.id === id);
+    if (res) res.data.monthly_rent = parseInt(input.value) || 0;
+  });
   remarks.forEach(input => {
     const id = input.getAttribute('data-id');
     const res = editRoomResidents.find(r => r.id === id);
@@ -649,7 +687,6 @@ async function saveEditRoom() {
 
   const roomNo = document.getElementById('edit-room-no').value.trim();
   const cap = parseInt(document.getElementById('edit-room-cap').value) || 0;
-  const rent = parseInt(document.getElementById('edit-room-rent').value) || 0;
   const errorDiv = document.getElementById('edit-room-error');
 
   if (!roomNo || cap <= 0) {
@@ -677,6 +714,11 @@ async function saveEditRoom() {
       errorDiv.style.display = 'block';
       return;
     }
+    if (res.data.monthly_rent === undefined || res.data.monthly_rent < 0) {
+      errorDiv.textContent = 'All residents must have a valid monthly rent.';
+      errorDiv.style.display = 'block';
+      return;
+    }
     if (isNaN(res.data.start_date.getTime()) || isNaN(res.data.end_date.getTime())) {
       errorDiv.textContent = 'All residents must have valid start and end dates.';
       errorDiv.style.display = 'block';
@@ -696,8 +738,7 @@ async function saveEditRoom() {
     // Update Room Details
     batch.update(roomRef, {
       room_no: roomNo,
-      capacity: cap,
-      monthly_rent: rent
+      capacity: cap
     });
 
     // Update Residents
@@ -711,7 +752,8 @@ async function saveEditRoom() {
           phone: res.data.phone,
           start_date: res.data.start_date,
           end_date: res.data.end_date,
-          remarks: res.data.remarks
+          remarks: res.data.remarks,
+          monthly_rent: res.data.monthly_rent
         });
       }
     }
@@ -721,7 +763,6 @@ async function saveEditRoom() {
     // Update local memory
     currentEditRoom.data.room_no = roomNo;
     currentEditRoom.data.capacity = cap;
-    currentEditRoom.data.monthly_rent = rent;
 
     // Process local residents array
     const newResidents = [];
@@ -733,6 +774,7 @@ async function saveEditRoom() {
         memRes.data.start_date = editRes.data.start_date;
         memRes.data.end_date = editRes.data.end_date;
         memRes.data.remarks = editRes.data.remarks;
+        memRes.data.monthly_rent = editRes.data.monthly_rent;
         newResidents.push(memRes);
       }
     }
@@ -778,6 +820,13 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
       document.getElementById('edit-room-field').classList.add('active');
       document.getElementById('edit-room-input').value = value;
       setTimeout(() => document.getElementById('edit-room-input').focus(), 100);
+      break;
+
+    case 'monthly_rent':
+      title.textContent = 'Edit Monthly Rent';
+      document.getElementById('edit-rent-field').classList.add('active');
+      document.getElementById('edit-rent-input').value = value || '';
+      setTimeout(() => document.getElementById('edit-rent-input').focus(), 100);
       break;
 
     case 'name':
@@ -845,6 +894,13 @@ function validateEditField() {
     case 'room_no':
       value = document.getElementById('edit-room-input').value.trim();
       if (!value) error = 'Room number cannot be empty';
+      break;
+
+    case 'monthly_rent':
+      value = parseInt(document.getElementById('edit-rent-input').value);
+      if (isNaN(value) || value < 0) {
+        error = 'Monthly rent must be a valid non-negative number';
+      }
       break;
 
     case 'name':
@@ -1312,6 +1368,25 @@ document.addEventListener('DOMContentLoaded', () => {
       searchInput.focus();
     });
   }
+
+  // Status filter click listeners
+  document.querySelectorAll('.status-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const clickedStatus = btn.getAttribute('data-status');
+      
+      // Toggle logic: deselect if already active, otherwise select
+      if (currentStatusFilter === clickedStatus) {
+        currentStatusFilter = null;
+        btn.classList.remove('active');
+      } else {
+        currentStatusFilter = clickedStatus;
+        document.querySelectorAll('.status-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      
+      renderResidentsTable();
+    });
+  });
 
   // Payment modal
   document.getElementById('payment-modal-close').addEventListener('click', closePaymentModal);

@@ -7,7 +7,7 @@
   <meta name="address"
     content="Track hostel resident payments efficiently. Manage properties, rooms, and resident payment statuses." />
   <title>StarVista — Hostel Payment Tracker</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=1.1.2" />
 </head>
 
 <body>
@@ -88,6 +88,11 @@
           </svg>
           <input type="text" id="room-search-input" class="search-input" placeholder="Search room no., name..." />
           <button id="room-search-clear" class="search-clear-btn" title="Clear search">✕</button>
+        </div>
+        <div class="status-filter-container">
+          <button class="status-filter-btn filter-paid" data-status="paid">Paid</button>
+          <button class="status-filter-btn filter-upcoming" data-status="upcoming">Upcoming</button>
+          <button class="status-filter-btn filter-pending" data-status="pending">Pending</button>
         </div>
         <div class="detail-actions">
           <button id="detail-add-room-btn" class="btn btn-primary btn-sm">+ Add Room</button>
@@ -240,11 +245,6 @@
         <input type="number" id="new-room-cap" placeholder="e.g. 4" min="1" />
       </div>
 
-      <div class="form-group">
-        <label for="new-room-rent">Monthly Rent (₹) *</label>
-        <input type="number" id="new-room-rent" placeholder="e.g. 14000" min="0" />
-      </div>
-
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeAddRoomModal()">Cancel</button>
         <button class="btn btn-primary" id="save-room-btn" style="width:auto;">Add Room</button>
@@ -272,10 +272,6 @@
           <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
             <label for="edit-room-cap">Capacity (Beds) *</label>
             <input type="number" id="edit-room-cap" placeholder="e.g. 4" min="1" />
-          </div>
-          <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
-            <label for="edit-room-rent">Monthly Rent (₹) *</label>
-            <input type="number" id="edit-room-rent" placeholder="e.g. 14000" min="0" />
           </div>
         </div>
 
@@ -372,6 +368,11 @@
         </select>
       </div>
 
+      <div class="form-group">
+        <label for="res-rent">Monthly Rent (₹) *</label>
+        <input type="number" id="res-rent" placeholder="e.g. 10000" min="0" />
+      </div>
+
       <div class="date-manual">
         <div class="form-group">
           <label for="res-start">Start Date *</label>
@@ -444,6 +445,13 @@
           <input type="text" id="edit-room-input" placeholder="Enter room number" maxlength="20" />
           <small class="field-hint">Enter valid room number</small>
         </div>
+
+        <!-- Monthly Rent Field -->
+        <div id="edit-rent-field" class="edit-field-form">
+          <label for="edit-rent-input">Monthly Rent (₹)</label>
+          <input type="number" id="edit-rent-input" placeholder="Enter monthly rent" min="0" />
+          <small class="field-hint">Rent must be a valid non-negative number</small>
+        </div>
       </div>
 
       <div class="modal-footer">
@@ -497,11 +505,11 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <!-- App Scripts -->
-  <script src="js/utils.js?v=1.1.0"></script>
-  <script src="js/app.js?v=1.1.0"></script>
-  <script src="js/auth.js?v=1.1.0"></script>
-  <script src="js/properties.js?v=1.1.0"></script>
-  <script src="js/property.js?v=1.1.0"></script>
+  <script src="js/utils.js?v=1.1.2"></script>
+  <script src="js/app.js?v=1.1.2"></script>
+  <script src="js/auth.js?v=1.1.2"></script>
+  <script src="js/properties.js?v=1.1.2"></script>
+  <script src="js/property.js?v=1.1.2"></script>
 
 </body>
 

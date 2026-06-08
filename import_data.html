@@ -251,8 +251,7 @@
 
                   batch.set(currentRoomRef, {
                     room_no: roomNo,
-                    capacity: 4,
-                    monthly_rent: 10000
+                    capacity: 4
                   });
 
                   existingRooms[roomNo] = currentParsedRoomId; // cache it
@@ -286,6 +285,7 @@
                   email: '',
                   phone: phoneOrOther,
                   gender: 'male',
+                  monthly_rent: 10000,
                   start_date: startDate,
                   end_date: endDate,
                   remarks: ''

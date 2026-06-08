@@ -597,6 +597,68 @@ body {
   display: block;
 }
 
+/* Status Filters */
+.status-filter-container {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.status-filter-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  outline: none;
+}
+
+/* Hover effects */
+.status-filter-btn.filter-paid:hover {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.status-filter-btn.filter-upcoming:hover {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.status-filter-btn.filter-pending:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Active states */
+.status-filter-btn.filter-paid.active {
+  background: var(--success);
+  color: white;
+  border-color: var(--success);
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.status-filter-btn.filter-upcoming.active {
+  background: var(--warning);
+  color: white;
+  border-color: var(--warning);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3);
+}
+
+.status-filter-btn.filter-pending.active {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
 /* Residents Table */
 .residents-wrapper {
   width: 100%;
@@ -1808,8 +1870,16 @@ body {
     max-width: 100%;
     margin-left: 0;
     width: 100%;
+    margin-bottom: 4px;
+  }
+  .status-filter-container {
+    order: 4;
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
   }
   .detail-actions {
+    order: 2;
     margin-left: auto;
   }
 }
