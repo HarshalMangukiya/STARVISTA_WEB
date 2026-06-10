@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarVista — Import & Export Property Data</title>
+  <link rel="stylesheet" href="css/style.css?v=1.1.2" />
+  <style>
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .panel-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .panel-card p.subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    /* Properties List styling */
+    .properties-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+      padding-right: 8px;
+      flex-grow: 1;
+    }
+
+    .property-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      transition: var(--transition);
+    }
+
+    .property-item-row:hover {
+      border-color: var(--border-focus);
+      background: var(--bg-secondary);
+      box-shadow: var(--shadow);
+    }
+
+    .property-item-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .property-item-img {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+
+    .property-item-icon-placeholder {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .property-item-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .property-item-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 15px;
+    }
+
+    .property-item-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Progress and Status indicators */
+    .status-card {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      display: none;
+    }
+
+    .status-card.active {
+      display: block;
+      animation: fadeIn 0.35s ease;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+
+    .status-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .status-log {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      max-height: 120px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+
+    .success-badge {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid var(--success);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .success-badge.active {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="properties-container">
+    <!-- Header Section -->
+    <div class="properties-header">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="index.html" class="back-btn" style="text-decoration: none;" title="Back to Dashboard">←</a>
+        <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary);">StarVista Data Hub</h1>
+      </div>
+      <div id="user-badge" style="display: none; align-items: center; gap: 16px;">
+        <span class="user-email" id="user-email-display" style="font-weight: 500; color: var(--text-secondary);"></span>
+        <button class="btn btn-outline btn-sm" id="logout-btn">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- ==================== AUTH SECTION ==================== -->
+    <div id="auth-section" class="auth-container" style="display: none; min-height: 60vh;">
+      <div class="auth-card">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Log in to export or import your properties</p>
+        <div id="auth-error" class="auth-error"></div>
+        <form id="auth-form">
+          <div class="form-group">
+            <label for="auth-email">Email</label>
+            <input type="email" id="auth-email" placeholder="you@example.com" required />
+          </div>
+          <div class="form-group">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary" id="auth-submit">Sign In</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================== MAIN CONTENT SECTION ==================== -->
+    <div id="main-content" style="display: none;">
+      <div class="dashboard-grid">
+        
+        <!-- EXPORT CARD PANEL -->
+        <div class="panel-card">
+          <h2>Export Properties</h2>
+          <p class="subtitle">Download all nested rooms and resident information for any property. The export is generated instantly as a structured JSON file.</p>
+          
+          <div class="properties-list" id="export-properties-list">
+            <!-- Loading Spinner -->
+            <div class="loader" id="properties-loader"><div class="spinner"></div></div>
+            <!-- Empty state or rows added dynamically -->
+          </div>
+        </div>
+
+        <!-- IMPORT CARD PANEL -->
+        <div class="panel-card">
+          <h2>Import Property</h2>
+          <p class="subtitle">Upload a StarVista JSON property file to restore or clone it directly to your profile. All rooms, resident history, and settings will be preserved.</p>
+          
+          <div class="image-upload" id="drop-zone" style="min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; flex-grow: 1;">
+            <div class="upload-icon" style="font-size: 40px; margin-bottom: 0;">📁</div>
+            <div style="font-weight: 600; font-size: 15px; color: var(--text-primary);">Drag & Drop your JSON file here</div>
+            <div style="font-size: 13px; color: var(--text-muted);">or <button type="button" onclick="triggerFileSelect()" style="color: var(--accent); font-weight: 600; text-decoration: underline; background: none; border: none; cursor: pointer; font-size: 13px; font-family: inherit;">browse files</button></div>
+            <input type="file" id="import-file-input" accept=".json" style="display: none;" />
+          </div>
+
+          <!-- Status Indicator -->
+          <div class="status-card" id="import-status-card">
+            <div class="status-title">
+              <span id="status-step-text">Initializing import...</span>
+              <span id="status-percentage">0%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="import-progress-bar"></div>
+            </div>
+            <div class="status-log" id="import-log"></div>
+            <div class="success-badge" id="import-success-badge">
+              🎉 Property imported successfully!
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="js/utils.js?v=1.1.2"></script>
+
+  <script>
+    // Copying Firebase configuration
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAGYgR_99dU_Ges10lZOfncYrSV-uRrAgM",
+      authDomain: "starvista-b0d10.firebaseapp.com",
+      projectId: "starvista-b0d10",
+      storageBucket: "starvista-b0d10.firebasestorage.app",
+      messagingSenderId: "52555511702",
+      appId: "1:52555511702:web:f79f204d7fdd27b9f9cfb7",
+      measurementId: "G-08QZTZF66B"
+    };
+
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    db.settings({
+      experimentalForceLongPolling: true
+    });
+
+    // Authentication Setup
+    auth.onAuthStateChanged(user => {
+      const authSection = document.getElementById('auth-section');
+      const mainContent = document.getElementById('main-content');
+      const userBadge = document.getElementById('user-badge');
+      const userEmailDisplay = document.getElementById('user-email-display');
+
+      if (user) {
+        authSection.style.display = 'none';
+        mainContent.style.display = 'block';
+        userBadge.style.display = 'flex';
+        userEmailDisplay.textContent = user.email;
+        loadProperties();
+      } else {
+        authSection.style.display = 'flex';
+        mainContent.style.display = 'none';
+        userBadge.style.display = 'none';
+      }
+    });
+
+    // Login Form Submit Handlers
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const errorEl = document.getElementById('auth-error');
+      const submitBtn = document.getElementById('auth-submit');
+
+      errorEl.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
+
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+      } catch (err) {
+        errorEl.textContent = "Login failed: " + err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      auth.signOut();
+    });
+
+    // Load user properties
+    async function loadProperties() {
+      const listEl = document.getElementById('export-properties-list');
+      const user = auth.currentUser;
+      if (!user) return;
+
+      listEl.innerHTML = '<div class="loader" id="properties-loader"><div class="spinner"></div></div>';
+
+      try {
+        const snap = await db.collection('properties')
+          .where('owner_id', '==', user.uid)
+          .get();
+
+        if (snap.empty) {
+          listEl.innerHTML = `
+            <div class="empty-state" style="padding: 24px; text-align: center;">
+              <div style="font-size: 36px; margin-bottom: 8px;">🏠</div>
+              <h3>No properties found</h3>
+              <p style="color: var(--text-muted); font-size: 13px;">Create properties in the dashboard to list them here.</p>
+            </div>`;
+          return;
+        }
+
+        listEl.innerHTML = '';
+        snap.forEach(doc => {
+          const data = doc.data();
+          const row = createPropertyRow(doc.id, data);
+          listEl.appendChild(row);
+        });
+      } catch (err) {
+        console.error('Error loading properties:', err);
+        showToast('Failed to load properties', 'error');
+        listEl.innerHTML = '<div style="color: var(--danger); font-size: 14px; text-align: center; padding: 20px;">Failed to load properties.</div>';
+      }
+    }
+
+    function createPropertyRow(id, data) {
+      const row = document.createElement('div');
+      row.className = 'property-item-row';
+
+      const info = document.createElement('div');
+      info.className = 'property-item-info';
+
+      if (data.image_url) {
+        const img = document.createElement('img');
+        img.className = 'property-item-img';
+        img.src = data.image_url;
+        img.alt = data.name;
+        info.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'property-item-icon-placeholder';
+        placeholder.textContent = '🏠';
+        info.appendChild(placeholder);
+      }
+
+      const text = document.createElement('div');
+      text.className = 'property-item-text';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'property-item-name';
+      nameSpan.textContent = data.name;
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'property-item-meta';
+      metaSpan.textContent = `${data.total_rooms || 0} rooms • ${data.address || 'No address'}`;
+
+      text.appendChild(nameSpan);
+      text.appendChild(metaSpan);
+      info.appendChild(text);
+
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-outline btn-sm';
+      btn.innerHTML = '⬇️ Export';
+      btn.onclick = () => exportProperty(id, data, btn);
+
+      row.appendChild(info);
+      row.appendChild(btn);
+      return row;
+    }
+
+    // Export Logic
+    async function exportProperty(propertyId, propertyData, buttonEl) {
+      const originalText = buttonEl.innerHTML;
+      buttonEl.disabled = true;
+      buttonEl.innerHTML = '⌛ Exporting...';
+      showToast(`Exporting property ${propertyData.name}...`);
+
+      try {
+        const exportData = {
+          name: propertyData.name,
+          address: propertyData.address || "",
+          image_url: propertyData.image_url || "",
+          total_rooms: propertyData.total_rooms || 0,
+          rooms: []
+        };
+
+        // Get rooms
+        const roomsSnap = await db.collection('properties').doc(propertyId)
+          .collection('rooms').orderBy('room_no').get();
+
+        for (const roomDoc of roomsSnap.docs) {
+          const roomData = roomDoc.data();
+          const residentsSnap = await db.collection('properties').doc(propertyId)
+            .collection('rooms').doc(roomDoc.id)
+            .collection('residents').get();
+
+          const residents = residentsSnap.docs.map(rDoc => {
+            const rData = rDoc.data();
+            return {
+              name: rData.name || "",
+              phone: rData.phone || "",
+              gender: rData.gender || "male",
+              monthly_rent: rData.monthly_rent || 0,
+              payment_mode: rData.payment_mode || "Online",
+              start_date: serializeDate(rData.start_date),
+              end_date: serializeDate(rData.end_date),
+              remarks: rData.remarks || ""
+            };
+          });
+
+          exportData.rooms.push({
+            room_no: roomData.room_no,
+            capacity: roomData.capacity || 4,
+            residents: residents
+          });
+        }
+
+        // Trigger file download
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${propertyData.name.replace(/[/\\?%*:|"<>]/g, '-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('Property exported successfully!');
+      } catch (err) {
+        console.error('Error exporting property:', err);
+        showToast('Export failed', 'error');
+      } finally {
+        buttonEl.disabled = false;
+        buttonEl.innerHTML = originalText;
+      }
+    }
+
+    function serializeDate(val) {
+      if (!val) return null;
+      if (val.toDate && typeof val.toDate === 'function') {
+        return val.toDate().toISOString();
+      }
+      if (val instanceof Date) {
+        return val.toISOString();
+      }
+      return val;
+    }
+
+    // Drag and Drop Zone Functionality
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('import-file-input');
+
+    function triggerFileSelect() {
+      fileInput.click();
+    }
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFileImport(file);
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.json')) {
+        handleFileImport(file);
+      } else {
+        showToast('Please upload a valid JSON file', 'error');
+      }
+    });
+
+    // Import Logic
+    function handleFileImport(file) {
+      const reader = new FileReader();
+      const statusCard = document.getElementById('import-status-card');
+      const progressBar = document.getElementById('import-progress-bar');
+      const percentageText = document.getElementById('status-percentage');
+      const stepText = document.getElementById('status-step-text');
+      const logEl = document.getElementById('import-log');
+      const successBadge = document.getElementById('import-success-badge');
+
+      statusCard.classList.add('active');
+      successBadge.classList.remove('active');
+      progressBar.style.width = '0%';
+      percentageText.textContent = '0%';
+      stepText.textContent = 'Reading JSON file...';
+      logEl.textContent = `File selected: ${file.name}\nSize: ${file.size} bytes\nStarting import process...\n`;
+
+      reader.onload = async (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (!importedData.name) {
+            throw new Error('Invalid JSON structure: missing property "name".');
+          }
+          if (importedData.rooms && !Array.isArray(importedData.rooms)) {
+            throw new Error('Invalid JSON structure: "rooms" field must be an array.');
+          }
+
+          logEl.textContent += `Valid JSON structure verified.\nProperty to create: "${importedData.name}"\nTotal Rooms in JSON: ${importedData.rooms ? importedData.rooms.length : 0}\n`;
+          stepText.textContent = 'Creating property document...';
+          progressBar.style.width = '15%';
+          percentageText.textContent = '15%';
+
+          // Create Property
+          const propRef = await db.collection('properties').add({
+            name: importedData.name,
+            address: importedData.address || "",
+            image_url: importedData.image_url || "",
+            owner_id: auth.currentUser.uid,
+            total_rooms: importedData.rooms ? importedData.rooms.length : 0,
+            created_at: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          logEl.textContent += `Property created successfully in Firestore. ID: ${propRef.id}\n`;
+          
+          const rooms = importedData.rooms || [];
+          const totalRooms = rooms.length;
+          
+          if (totalRooms > 0) {
+            logEl.textContent += `Writing rooms and residents info...\n`;
+            
+            for (let i = 0; i < totalRooms; i++) {
+              const room = rooms[i];
+              const roomIndex = i + 1;
+              stepText.textContent = `Importing rooms... (${roomIndex}/${totalRooms})`;
+              
+              // Calculate progress between 15% and 95%
+              const currentProgress = Math.round(15 + (roomIndex / totalRooms) * 80);
+              progressBar.style.width = `${currentProgress}%`;
+              percentageText.textContent = `${currentProgress}%`;
+
+              const roomRef = await propRef.collection('rooms').add({
+                room_no: room.room_no,
+                capacity: parseInt(room.capacity) || 4
+              });
+
+              logEl.textContent += `  - Room ${room.room_no} imported (Capacity: ${room.capacity || 4})\n`;
+
+              for (const res of room.residents || []) {
+                await roomRef.collection('residents').add({
+                  name: res.name || "",
+                  phone: res.phone || "",
+                  gender: res.gender || "male",
+                  monthly_rent: parseInt(res.monthly_rent) || 0,
+                  payment_mode: res.payment_mode || "Online",
+                  start_date: res.start_date ? new Date(res.start_date) : new Date(),
+                  end_date: res.end_date ? new Date(res.end_date) : new Date(),
+                  remarks: res.remarks || ""
+                });
+                logEl.textContent += `    + Resident: ${res.name}\n`;
+              }
+
+              // Auto-scroll the log
+              logEl.scrollTop = logEl.scrollHeight;
+            }
+          }
+
+          progressBar.style.width = '100%';
+          percentageText.textContent = '100%';
+          stepText.textContent = 'Import complete!';
+          logEl.textContent += `\n✅ Done! Property "${importedData.name}" imported successfully.`;
+          successBadge.classList.add('active');
+          showToast('Property imported successfully!');
+          
+          // Reload the properties listing
+          loadProperties();
+        } catch (err) {
+          console.error(err);
+          logEl.textContent += `\n❌ ERROR: ${err.message}`;
+          stepText.textContent = 'Import failed';
+          progressBar.style.width = '100%';
+          progressBar.style.backgroundColor = 'var(--danger)';
+          showToast('Import failed: ' + err.message, 'error');
+        }
+      };
+
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+
+</html>
