@@ -816,6 +816,35 @@ body {
   color: var(--danger);
 }
 
+/* Total Rent Row */
+.total-rent-row td {
+  background: var(--bg-glass) !important;
+  font-weight: 600;
+  border-top: 1.5px solid var(--border) !important;
+  border-bottom: 1.5px solid var(--border) !important;
+  padding: 14px 16px !important;
+  font-size: 14px;
+}
+
+.total-rent-row:hover td {
+  background: var(--bg-glass-hover) !important;
+}
+
+.total-rent-label {
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.total-rent-value {
+  font-weight: 700;
+  color: var(--accent-hover);
+  font-size: 15px;
+}
+
 /* ===== Modal / Dialog ===== */
 .modal-overlay {
   position: fixed;

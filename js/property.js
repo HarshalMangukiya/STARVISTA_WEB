@@ -136,6 +136,7 @@ function renderResidentsTable() {
   }
 
   let visibleRoomCount = 0;
+  let totalRentSum = 0;
 
   visibleRooms.forEach((room) => {
     // Add room gap before each room (except first)
@@ -153,6 +154,8 @@ function renderResidentsTable() {
     // Resident rows
     room.residents.forEach((resident) => {
       const status = getPaymentStatus(resident.data.end_date);
+      const rent = parseInt(resident.data.monthly_rent, 10) || 0;
+      totalRentSum += rent;
       const isFirstRow = !renderedRoomLabel;
       const roomTdAttrs = {
         className: isFirstRow ? 'editable-cell' : '',
@@ -310,6 +313,21 @@ function renderResidentsTable() {
       tableBody.appendChild(emptyRow);
     }
   });
+
+  // Add Total Rent Row only when a status filter (Paid, Upcoming, Pending) is active
+  if (currentStatusFilter) {
+    if (visibleRoomCount > 0) {
+      const gapRow = el('tr', { className: 'room-gap' }, [el('td', { colspan: '9' })]);
+      tableBody.appendChild(gapRow);
+    }
+
+    const totalRow = el('tr', { className: 'total-rent-row' }, [
+      el('td', { colspan: '6', className: 'total-rent-label', textContent: 'Total Rent' }),
+      el('td', { className: 'total-rent-value', textContent: `₹${totalRentSum}` }),
+      el('td', { colspan: '2', textContent: '' })
+    ]);
+    tableBody.appendChild(totalRow);
+  }
 }
 
 // ===== Payment Update Modal =====
