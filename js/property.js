@@ -256,7 +256,7 @@ function renderResidentsTable() {
         // Rent
         el('td', {
           className: 'editable-cell',
-          textContent: resident.data.monthly_rent ? `₹${resident.data.monthly_rent}` : '—',
+          textContent: resident.data.monthly_rent ? `₹${formatCurrency(resident.data.monthly_rent)}` : '—',
           style: 'color:var(--text-secondary);font-weight:500;',
           'data-tooltip': 'Click to Edit',
           onClick: () => openEditFieldModal('monthly_rent', room.id, resident.id, resident.data, resident.data.monthly_rent || 0)
@@ -323,7 +323,7 @@ function renderResidentsTable() {
 
     const totalRow = el('tr', { className: 'total-rent-row' }, [
       el('td', { colspan: '6', className: 'total-rent-label', textContent: 'Total Rent' }),
-      el('td', { className: 'total-rent-value', textContent: `₹${totalRentSum}` }),
+      el('td', { className: 'total-rent-value', textContent: `₹${formatCurrency(totalRentSum)}` }),
       el('td', { colspan: '2', textContent: '' })
     ]);
     tableBody.appendChild(totalRow);

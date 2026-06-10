@@ -124,6 +124,16 @@ async function uploadToCloudinary(file) {
 }
 
 /**
+ * Format a number into Indian currency style (e.g. 10000 -> 10,000)
+ */
+function formatCurrency(amount) {
+  if (amount === null || amount === undefined || amount === '') return '—';
+  const num = Number(amount);
+  if (isNaN(num)) return '—';
+  return new Intl.NumberFormat('en-IN').format(num);
+}
+
+/**
  * Create element helper
  */
 function el(tag, attrs = {}, children = []) {
