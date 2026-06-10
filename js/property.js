@@ -335,6 +335,23 @@ let paymentRoomId = null;
 let paymentResidentId = null;
 let paymentResidentData = null;
 
+/**
+ * Returns the last day of a given month.
+ * @param {number} year
+ * @param {number} month - 0-indexed (0 = January)
+ */
+function lastDayOfMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * Checks if a Date object falls on the last day of its month.
+ */
+function isLastDayOfMonth(date) {
+  const d = date instanceof Date ? date : date.toDate();
+  return d.getDate() === lastDayOfMonth(d.getFullYear(), d.getMonth());
+}
+
 function openPaymentModal(roomId, residentId, residentData) {
   paymentRoomId = roomId;
   paymentResidentId = residentId;
@@ -343,12 +360,26 @@ function openPaymentModal(roomId, residentId, residentData) {
   const overlay = document.getElementById('payment-modal');
   document.getElementById('payment-resident-name').textContent = residentData.name;
 
-  const startDate = residentData.end_date ? (residentData.end_date instanceof Date ? residentData.end_date : residentData.end_date.toDate()) : new Date();
+  // Determine the computed start date for quick-select buttons:
+  // If previous end_date was the last day of a month → new start = 1st of next month
+  // Otherwise → keep previous end_date as-is (user can still manually pick)
+  const prevEnd = residentData.end_date
+    ? (residentData.end_date instanceof Date ? residentData.end_date : residentData.end_date.toDate())
+    : new Date();
+
+  let computedStart;
+  if (isLastDayOfMonth(prevEnd)) {
+    // Last day of month → new start = 1st of next month
+    computedStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth() + 1, 1);
+  } else {
+    // Mid-month → new start = prevEnd + 1 day
+    computedStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
+  }
 
   const startInput = document.getElementById('payment-start');
   const endInput = document.getElementById('payment-end');
 
-  startInput.value = formatDateForInput(startDate);
+  startInput.value = formatDateForInput(computedStart);
   endInput.value = '';
 
   // Deselect quick buttons
@@ -384,20 +415,36 @@ function handlePaymentQuickBtn(months) {
   document.querySelectorAll('.payment-quick-btns .btn').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
 
-  const startDate = paymentResidentData.end_date
+  const prevEnd = paymentResidentData.end_date
     ? (paymentResidentData.end_date instanceof Date ? paymentResidentData.end_date : paymentResidentData.end_date.toDate())
     : new Date();
 
   const startInput = document.getElementById('payment-start');
-  startInput.value = formatDateForInput(startDate);
-
   const endInput = document.getElementById('payment-end');
-  if (months === 'custom') {
-    endInput.value = '';
-    endInput.focus();
+
+  if (isLastDayOfMonth(prevEnd)) {
+    // ── Last-day-of-month case ────────────────────────────────────────────
+    // Start = 1st of next month
+    const start = new Date(prevEnd.getFullYear(), prevEnd.getMonth() + 1, 1);
+    startInput.value = formatDateForInput(start);
+
+    // End = last day of the Nth month from start
+    // e.g. start 1-Feb, 1M → last day of Feb; start 1-Feb, 3M → last day of Apr
+    const endMonthIndex = start.getMonth() + months - 1; // 0-indexed
+    const endYear = start.getFullYear() + Math.floor(endMonthIndex / 12);
+    const endMonthNorm = endMonthIndex % 12;
+    endInput.value = formatDateForInput(new Date(endYear, endMonthNorm, lastDayOfMonth(endYear, endMonthNorm)));
   } else {
-    const endDate = addMonths(startDate, months);
-    endInput.value = formatDateForInput(endDate);
+    // ── Mid-month case ────────────────────────────────────────────────────
+    // Start = prevEnd + 1 day
+    const start = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
+    startInput.value = formatDateForInput(start);
+
+    // End = prevEnd + N months (same day, N months later)
+    // e.g. prevEnd 05-Jul, 1M → 05-Aug
+    //      prevEnd 05-Jul, 3M → 05-Oct
+    const end = new Date(prevEnd.getFullYear(), prevEnd.getMonth() + months, prevEnd.getDate());
+    endInput.value = formatDateForInput(end);
   }
 }
 
@@ -456,7 +503,6 @@ function openAddResidentModal(roomId, roomData) {
   const overlay = document.getElementById('add-resident-modal');
   document.getElementById('resident-room-label').textContent = `Room ${roomData.room_no}`;
   document.getElementById('res-name').value = '';
-  document.getElementById('res-email').value = '';
   document.getElementById('res-phone').value = '';
   document.getElementById('res-gender').value = 'male';
   document.getElementById('res-rent').value = '';
@@ -476,7 +522,6 @@ function closeAddResidentModal() {
 
 async function saveResident() {
   const name = document.getElementById('res-name').value.trim();
-  const email = document.getElementById('res-email').value.trim();
   const phone = document.getElementById('res-phone').value.trim();
   const gender = document.getElementById('res-gender').value;
   const rent = parseInt(document.getElementById('res-rent').value) || 0;
@@ -506,7 +551,6 @@ async function saveResident() {
       .collection('rooms').doc(addResidentRoomId)
       .collection('residents').add({
         name,
-        email,
         phone,
         gender,
         monthly_rent: rent,
@@ -521,7 +565,7 @@ async function saveResident() {
     if (room) {
       room.residents.push({
         id: resRef.id,
-        data: { name, email, phone, gender, monthly_rent: rent, payment_mode: 'Online', start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
+        data: { name, phone, gender, monthly_rent: rent, payment_mode: 'Online', start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
       });
     }
 
@@ -1449,7 +1493,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pay-1m').addEventListener('click', () => handlePaymentQuickBtn(1));
   document.getElementById('pay-3m').addEventListener('click', () => handlePaymentQuickBtn(3));
   document.getElementById('pay-6m').addEventListener('click', () => handlePaymentQuickBtn(6));
-  document.getElementById('pay-custom').addEventListener('click', () => handlePaymentQuickBtn('custom'));
 
   // Payment mode selectors in Payment modal
   document.getElementById('pay-mode-cash').addEventListener('click', () => {
