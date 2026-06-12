@@ -7,6 +7,14 @@ let currentRooms = []; // { id, data, residents: [{id, data}] }
 let currentStatusFilter = null; // 'paid', 'upcoming', 'pending' or null
 let selectedPaymentMode = null; // Track selected payment mode in modal
 
+function sortRoomsAlphabetically() {
+  currentRooms.sort((a, b) => {
+    const valA = String(a.data.room_no || '');
+    const valB = String(b.data.room_no || '');
+    return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 async function loadPropertyDetail(propertyId) {
   currentPropertyId = propertyId;
   const header = document.getElementById('detail-title');
@@ -54,6 +62,7 @@ async function loadPropertyDetail(propertyId) {
     });
 
     currentRooms = await Promise.all(roomPromises);
+    sortRoomsAlphabetically();
 
     renderResidentsTable();
   } catch (err) {
@@ -137,6 +146,7 @@ function renderResidentsTable() {
 
   let visibleRoomCount = 0;
   let totalRentSum = 0;
+  let totalStudentsCount = 0;
 
   visibleRooms.forEach((room) => {
     // Add room gap before each room (except first)
@@ -156,6 +166,7 @@ function renderResidentsTable() {
       const status = getPaymentStatus(resident.data.end_date);
       const rent = parseInt(resident.data.monthly_rent, 10) || 0;
       totalRentSum += rent;
+      totalStudentsCount++;
       const isFirstRow = !renderedRoomLabel;
       const roomTdAttrs = {
         className: isFirstRow ? 'editable-cell' : '',
@@ -322,7 +333,11 @@ function renderResidentsTable() {
     }
 
     const totalRow = el('tr', { className: 'total-rent-row' }, [
-      el('td', { colspan: '6', className: 'total-rent-label', textContent: 'Total Rent' }),
+      el('td', {
+        colspan: '6',
+        className: 'total-rent-label',
+        textContent: `Total rent (${totalStudentsCount} ${totalStudentsCount === 1 ? 'Resident' : 'Residents'})`
+      }),
       el('td', { className: 'total-rent-value', textContent: `₹${formatCurrency(totalRentSum)}` }),
       el('td', { colspan: '2', textContent: '' })
     ]);
@@ -618,7 +633,7 @@ async function saveRoom() {
       data: { room_no: roomNo, capacity: cap },
       residents: []
     });
-    currentRooms.sort((a, b) => parseInt(a.data.room_no) - parseInt(b.data.room_no));
+    sortRoomsAlphabetically();
 
     // Update the total_rooms count
     await db.collection('properties').doc(currentPropertyId).update({
@@ -875,7 +890,7 @@ async function saveEditRoom() {
     currentEditRoom.residents = newResidents;
 
     // Resort rooms just in case room_no changed
-    currentRooms.sort((a, b) => parseInt(a.data.room_no) - parseInt(b.data.room_no));
+    sortRoomsAlphabetically();
 
     showToast('Room and residents updated successfully!');
     closeEditRoomModal();
@@ -1150,6 +1165,81 @@ async function confirmDeleteResident() {
     showToast('Failed to delete resident', 'error');
 
     // Reset button state on error
+    confirmBtn.disabled = false;
+    textSpan.style.display = 'inline';
+    loader.style.display = 'none';
+  }
+}
+
+// ===== Delete Room Modal =====
+let deleteRoomData = {
+  roomId: null,
+  roomData: null
+};
+
+function openDeleteRoomModal() {
+  if (!currentEditRoom) return;
+
+  deleteRoomData = { roomId: currentEditRoom.id, roomData: currentEditRoom.data };
+
+  document.getElementById('delete-room-name').textContent = `Room ${deleteRoomData.roomData.room_no}`;
+
+  // Reset button state
+  const confirmBtn = document.getElementById('delete-room-confirm');
+  confirmBtn.disabled = false;
+  document.getElementById('delete-room-btn-text').style.display = 'inline';
+  document.getElementById('delete-room-loader').style.display = 'none';
+
+  document.getElementById('delete-room-modal').classList.add('active');
+}
+
+function closeDeleteRoomModal() {
+  document.getElementById('delete-room-modal').classList.remove('active');
+  deleteRoomData = { roomId: null, roomData: null };
+}
+
+async function confirmDeleteRoom() {
+  const confirmBtn = document.getElementById('delete-room-confirm');
+  const textSpan = document.getElementById('delete-room-btn-text');
+  const loader = document.getElementById('delete-room-loader');
+
+  confirmBtn.disabled = true;
+  textSpan.style.display = 'none';
+  loader.style.display = 'inline-block';
+
+  try {
+    const propertyDocRef = db.collection('properties').doc(currentPropertyId);
+    const roomDocRef = propertyDocRef.collection('rooms').doc(deleteRoomData.roomId);
+
+    // Delete all residents in this room first to avoid orphaned documents
+    const residentsSnap = await roomDocRef.collection('residents').get();
+    const batch = db.batch();
+    
+    residentsSnap.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    // Also delete the room itself in the batch
+    batch.delete(roomDocRef);
+    
+    // Decrement total_rooms count on the property
+    batch.update(propertyDocRef, {
+      total_rooms: firebase.firestore.FieldValue.increment(-1)
+    });
+
+    await batch.commit();
+
+    // Remove from in-memory array
+    currentRooms = currentRooms.filter(r => r.id !== deleteRoomData.roomId);
+
+    showToast('Room deleted successfully!', 'success');
+    closeDeleteRoomModal();
+    closeEditRoomModal();
+    renderResidentsTable(); // Re-render table
+  } catch (err) {
+    console.error('Error deleting room:', err);
+    showToast('Failed to delete room', 'error');
+
     confirmBtn.disabled = false;
     textSpan.style.display = 'inline';
     loader.style.display = 'none';
@@ -1467,7 +1557,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.status-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const clickedStatus = btn.getAttribute('data-status');
-      
+
       // Toggle logic: deselect if already active, otherwise select
       if (currentStatusFilter === clickedStatus) {
         currentStatusFilter = null;
@@ -1477,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.status-filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       }
-      
+
       renderResidentsTable();
     });
   });
@@ -1533,6 +1623,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('delete-resident-confirm').addEventListener('click', confirmDeleteResident);
   document.getElementById('delete-resident-modal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeDeleteResidentModal();
+  });
+
+  // Delete Room modal
+  document.getElementById('delete-room-btn').addEventListener('click', openDeleteRoomModal);
+  document.getElementById('delete-room-close').addEventListener('click', closeDeleteRoomModal);
+  document.getElementById('delete-room-cancel').addEventListener('click', closeDeleteRoomModal);
+  document.getElementById('delete-room-confirm').addEventListener('click', confirmDeleteRoom);
+  document.getElementById('delete-room-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeDeleteRoomModal();
   });
 
   // Remark textarea character counter
