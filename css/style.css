@@ -834,7 +834,6 @@ body {
   text-align: right;
   font-weight: 700;
   color: var(--text-primary);
-  text-transform: uppercase;
   font-size: 12px;
   letter-spacing: 0.05em;
 }
