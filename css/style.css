@@ -637,6 +637,18 @@ body {
   border-color: var(--danger);
 }
 
+.status-filter-btn.filter-booked:hover {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.status-filter-btn.filter-leaving:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+
 /* Active states */
 .status-filter-btn.filter-paid.active {
   background: var(--success);
@@ -657,6 +669,20 @@ body {
   color: white;
   border-color: var(--danger);
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.status-filter-btn.filter-booked.active {
+  background: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.status-filter-btn.filter-leaving.active {
+  background: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
 /* Residents Table */
@@ -784,6 +810,27 @@ body {
   color: var(--text-secondary);
 }
 
+.add-booking-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(139, 92, 246, 0.08);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #7c3aed;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+  margin-left: 8px;
+}
+
+.add-booking-btn:hover {
+  background: rgba(139, 92, 246, 0.15);
+  color: #6d28d9;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -814,6 +861,11 @@ body {
 .badge-pending {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+.badge-booked {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
 }
 
 /* Total Rent Row */
@@ -876,6 +928,19 @@ body {
   box-shadow: var(--shadow-lg);
   transform: scale(0.95) translateY(10px);
   transition: transform 0.25s ease;
+}
+
+/* Custom scrollbar to make it look inset and avoid overlapping border-radius */
+.modal::-webkit-scrollbar {
+  width: 14px;
+}
+.modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 10px;
+  border: 4px solid var(--bg-secondary);
 }
 
 .modal.modal-lg {
@@ -1831,6 +1896,44 @@ body {
   border-radius: 20px;
   border: 1px solid var(--border);
   white-space: nowrap;
+}
+
+.title-occupancy {
+  font-size: 0.55em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.booked-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #7c3aed;
+  background: rgba(139, 92, 246, 0.08);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  white-space: nowrap;
+}
+
+.leaving-end-date {
+  color: #f59e0b !important;
+  font-weight: 600;
+}
+
+.leaving-end-date .dot-red {
+  background: #f59e0b !important;
+}
+
+.btn-leaving-notice {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  width: auto;
+}
+
+.btn-leaving-notice:hover {
+  background: #d97706;
 }
 
 /* Password Visibility Toggle */

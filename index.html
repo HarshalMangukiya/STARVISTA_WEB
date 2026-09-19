@@ -81,7 +81,6 @@
         <button id="back-btn" class="back-btn" title="Back">←</button>
         <h1 class="detail-title-wrapper">
           <span id="detail-title">Property</span>
-          <span id="detail-occupancy" class="occupancy-text"></span>
         </h1>
         <div class="search-wrapper">
           <svg class="search-icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -94,6 +93,10 @@
           <button class="status-filter-btn filter-paid" data-status="paid">Paid</button>
           <button class="status-filter-btn filter-upcoming" data-status="upcoming">Upcoming</button>
           <button class="status-filter-btn filter-pending" data-status="pending">Pending</button>
+          <button class="status-filter-btn filter-booked" data-status="booked">Booked</button>
+        </div>
+        <div class="secondary-filter-container" style="margin-left: 12px; padding-left: 20px; border-left: 2px solid var(--border);">
+          <button class="status-filter-btn filter-leaving" data-status="leaving">Leaving (0)</button>
         </div>
         <div class="detail-actions">
           <button id="detail-add-room-btn" class="btn btn-primary btn-sm">+ Add Room</button>
@@ -382,6 +385,18 @@
         <input type="number" id="res-rent" placeholder="e.g. 10000" min="0" />
       </div>
 
+      <label style="font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;display:block;">Payment Mode</label>
+      <div class="payment-mode-btns" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+        <button type="button" class="btn" id="res-pay-mode-cash" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          Cash
+        </button>
+        <button type="button" class="btn active" id="res-pay-mode-online" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+          Online
+        </button>
+      </div>
+
       <div class="date-manual">
         <div class="form-group">
           <label for="res-start">Start Date *</label>
@@ -401,6 +416,107 @@
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeAddResidentModal()">Cancel</button>
         <button class="btn btn-primary" id="save-resident-btn" style="width:auto;">Add Resident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ADD BOOKING ==================== -->
+  <div id="add-booking-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Add Booking</h2>
+        <button id="add-booking-modal-close" class="modal-close">✕</button>
+      </div>
+
+      <p id="booking-room-label" style="color:#7c3aed;font-weight:600;margin-bottom:20px;"></p>
+
+      <div class="form-group">
+        <label for="booking-name">Name *</label>
+        <input type="text" id="booking-name" placeholder="Resident name" />
+      </div>
+
+      <div class="form-group">
+        <label for="booking-phone">Phone</label>
+        <input type="text" id="booking-phone" placeholder="+91 XXXXX XXXXX" />
+      </div>
+
+      <div class="form-group">
+        <label for="booking-rent">Monthly Rent (₹) *</label>
+        <input type="number" id="booking-rent" placeholder="e.g. 10000" min="0" />
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeAddBookingModal()">Cancel</button>
+        <button class="btn btn-primary" id="save-booking-btn" style="width:auto;">Add Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONVERT BOOKING ==================== -->
+  <div id="convert-booking-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Confirm Booking</h2>
+        <button id="convert-booking-close" class="modal-close">✕</button>
+      </div>
+
+      <p id="convert-booking-name" style="color:var(--accent-hover);font-weight:600;margin-bottom:20px;"></p>
+
+      <div class="form-group">
+        <label for="convert-name">Name *</label>
+        <input type="text" id="convert-name" placeholder="Resident name" />
+      </div>
+
+      <div class="form-group">
+        <label for="convert-phone">Phone</label>
+        <input type="text" id="convert-phone" placeholder="+91 XXXXX XXXXX" />
+      </div>
+
+      <div class="form-group">
+        <label for="convert-gender">Gender</label>
+        <select id="convert-gender">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="convert-rent">Monthly Rent (₹) *</label>
+        <input type="number" id="convert-rent" placeholder="e.g. 10000" min="0" />
+      </div>
+
+      <label style="font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;display:block;">Payment Mode</label>
+      <div class="payment-mode-btns" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+        <button type="button" class="btn" id="convert-pay-mode-cash" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          Cash
+        </button>
+        <button type="button" class="btn active" id="convert-pay-mode-online" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+          Online
+        </button>
+      </div>
+
+      <div class="date-manual">
+        <div class="form-group">
+          <label for="convert-start">Start Date *</label>
+          <input type="date" id="convert-start" />
+        </div>
+        <div class="form-group">
+          <label for="convert-end">End Date *</label>
+          <input type="date" id="convert-end" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="convert-remarks">Remarks</label>
+        <textarea id="convert-remarks" rows="2" placeholder="Optional remarks..."></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeConvertBookingModal()">Cancel</button>
+        <button class="btn btn-primary" id="save-convert-booking-btn" style="width:auto;">Confirm Booking</button>
       </div>
     </div>
   </div>
@@ -465,6 +581,7 @@
 
       <div class="modal-footer">
         <button class="btn btn-outline" id="edit-field-cancel">Cancel</button>
+        <button class="btn btn-leaving-notice" id="edit-field-leaving-notice" style="display:none;">Leaving Notice</button>
         <button class="btn btn-primary" id="edit-field-confirm" style="width:auto;">Confirm Update</button>
       </div>
     </div>

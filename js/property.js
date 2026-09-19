@@ -6,6 +6,8 @@ let currentPropertyData = null;
 let currentRooms = []; // { id, data, residents: [{id, data}] }
 let currentStatusFilter = null; // 'paid', 'upcoming', 'pending' or null
 let selectedPaymentMode = null; // Track selected payment mode in modal
+let newResidentPaymentMode = 'Online';
+let convertBookingPaymentMode = 'Online';
 
 function sortRoomsAlphabetically() {
   currentRooms.sort((a, b) => {
@@ -33,8 +35,6 @@ async function loadPropertyDetail(propertyId) {
   document.querySelectorAll('.status-filter-btn').forEach(btn => btn.classList.remove('active'));
 
   header.textContent = 'Loading...';
-  const occupancyEl = document.getElementById('detail-occupancy');
-  if (occupancyEl) occupancyEl.textContent = '';
   tableBody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner"></div></div></td></tr>';
 
   try {
@@ -77,12 +77,53 @@ function renderResidentsTable() {
   let totalOccupied = 0;
   currentRooms.forEach(room => {
     totalCapacity += parseInt(room.data.capacity) || 0;
-    totalOccupied += room.residents ? room.residents.length : 0;
+    if (room.residents) {
+      room.residents.forEach(res => {
+        if (!res.data.is_booked) {
+          totalOccupied++;
+        }
+      });
+    }
   });
-  const occupancyEl = document.getElementById('detail-occupancy');
-  if (occupancyEl) {
-    occupancyEl.textContent = `${totalOccupied}/${totalCapacity} occupied`;
+  const titleEl = document.getElementById('detail-title');
+  if (titleEl && currentPropertyData) {
+    titleEl.innerHTML = `${currentPropertyData.name}<span class="title-occupancy">(${totalOccupied}/${totalCapacity})</span>`;
   }
+
+  // Calculate totals for statuses
+  let totalBooked = 0;
+  let totalPaid = 0;
+  let totalUpcoming = 0;
+  let totalPending = 0;
+  let totalLeaving = 0;
+  currentRooms.forEach(room => {
+    if (room.residents) {
+      room.residents.forEach(res => {
+        if (res.data.is_leaving) {
+          totalLeaving++;
+        }
+        if (res.data.is_booked) {
+          totalBooked++;
+        } else {
+          const status = getPaymentStatus(res.data.end_date);
+          if (status === 'paid') totalPaid++;
+          else if (status === 'upcoming') totalUpcoming++;
+          else if (status === 'pending') totalPending++;
+        }
+      });
+    }
+  });
+
+  const btnPaid = document.querySelector('.filter-paid');
+  if (btnPaid) btnPaid.textContent = `Paid (${totalPaid})`;
+  const btnUpcoming = document.querySelector('.filter-upcoming');
+  if (btnUpcoming) btnUpcoming.textContent = `Upcoming (${totalUpcoming})`;
+  const btnPending = document.querySelector('.filter-pending');
+  if (btnPending) btnPending.textContent = `Pending (${totalPending})`;
+  const btnBooked = document.querySelector('.filter-booked');
+  if (btnBooked) btnBooked.textContent = `Booked (${totalBooked})`;
+  const btnLeaving = document.querySelector('.filter-leaving');
+  if (btnLeaving) btnLeaving.textContent = `Leaving (${totalLeaving})`;
 
   const tableBody = document.getElementById('residents-body');
   tableBody.innerHTML = '';
@@ -103,9 +144,13 @@ function renderResidentsTable() {
       // Filter residents inside the room based on search query and status filter
       const filteredResidents = room.residents.filter(res => {
         // 1. Status Filter Check
-        const status = getPaymentStatus(res.data.end_date);
-        if (currentStatusFilter && status !== currentStatusFilter) {
-          return false;
+        if (currentStatusFilter) {
+          if (currentStatusFilter === 'leaving') {
+            if (!res.data.is_leaving) return false;
+          } else {
+            const status = res.data.is_booked ? 'booked' : getPaymentStatus(res.data.end_date);
+            if (status !== currentStatusFilter) return false;
+          }
         }
 
         // 2. Query Check (Name or Room Number)
@@ -163,7 +208,7 @@ function renderResidentsTable() {
 
     // Resident rows
     room.residents.forEach((resident) => {
-      const status = getPaymentStatus(resident.data.end_date);
+      const status = resident.data.is_booked ? 'booked' : getPaymentStatus(resident.data.end_date);
       const rent = parseInt(resident.data.monthly_rent, 10) || 0;
       totalRentSum += rent;
       totalStudentsCount++;
@@ -237,31 +282,39 @@ function renderResidentsTable() {
         ]),
         // End Date
         el('td', {
-          className: 'editable-cell',
+          className: `editable-cell${resident.data.is_leaving ? ' leaving-end-date' : ''}`,
           'data-tooltip': 'Click to Edit',
           onClick: () => openEditFieldModal('end_date', room.id, resident.id, resident.data, resident.data.end_date),
-          style: 'color:var(--text-muted);'
+          style: resident.data.is_leaving ? 'color:#f59e0b;font-weight:600;' : 'color:var(--text-muted);'
         }, [
           el('div', { className: 'date-range' }, [
-            el('span', { className: 'dot dot-red' }),
+            el('span', { className: `dot ${resident.data.is_leaving ? 'dot-orange' : 'dot-red'}`, style: resident.data.is_leaving ? 'background:#f59e0b;' : '' }),
             el('span', { textContent: ' ' + formatDate(resident.data.end_date) })
           ])
         ]),
-        // Payment status
+        // Payment status / Booked status
         el('td', {}, [
           el('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
-            el('span', {
-              className: `badge badge-${status}`,
-              textContent: status,
-              onClick: () => openPaymentModal(room.id, resident.id, resident.data)
-            }),
-            ...(status === 'paid' && resident.data.payment_mode ? [
+            ...(resident.data.is_booked ? [
               el('span', {
-                className: 'payment-mode-icon',
-                title: `${resident.data.payment_mode} Payment`,
-                innerHTML: resident.data.payment_mode === 'Online' ? ONLINE_SVG : CASH_SVG
+                className: 'badge badge-booked',
+                textContent: 'BOOKED',
+                onClick: () => openConvertBookingModal(room.id, resident.id, resident.data)
               })
-            ] : [])
+            ] : [
+              el('span', {
+                className: `badge badge-${status}`,
+                textContent: status,
+                onClick: () => openPaymentModal(room.id, resident.id, resident.data)
+              }),
+              ...(status === 'paid' && resident.data.payment_mode ? [
+                el('span', {
+                  className: 'payment-mode-icon',
+                  title: `${resident.data.payment_mode} Payment`,
+                  innerHTML: resident.data.payment_mode === 'Online' ? ONLINE_SVG : CASH_SVG
+                })
+              ] : [])
+            ])
           ])
         ]),
         // Rent
@@ -315,8 +368,13 @@ function renderResidentsTable() {
         el('td', { colspan: '8' }, [
           el('button', {
             className: 'add-resident-btn',
-            innerHTML: '+ Add Resident',
+            innerHTML: '+ Add',
             onClick: () => openAddResidentModal(room.id, room.data)
+          }),
+          el('button', {
+            className: 'add-booking-btn',
+            innerHTML: '+ Book',
+            onClick: () => openAddBookingModal(room.id, room.data)
           })
         ])
       ]);
@@ -528,7 +586,24 @@ function openAddResidentModal(roomId, roomData) {
   resEnd.value = formatDateForInput(addMonths(new Date(), 1));
   document.getElementById('res-remarks').value = '';
 
+  newResidentPaymentMode = 'Online';
+  updateNewResidentPaymentModeButtons();
+
   overlay.classList.add('active');
+}
+
+function updateNewResidentPaymentModeButtons() {
+  const cashBtn = document.getElementById('res-pay-mode-cash');
+  const onlineBtn = document.getElementById('res-pay-mode-online');
+  if (cashBtn && onlineBtn) {
+    cashBtn.classList.remove('active');
+    onlineBtn.classList.remove('active');
+    if (newResidentPaymentMode === 'Cash') {
+      cashBtn.classList.add('active');
+    } else {
+      onlineBtn.classList.add('active');
+    }
+  }
 }
 
 function closeAddResidentModal() {
@@ -540,6 +615,7 @@ async function saveResident() {
   const phone = document.getElementById('res-phone').value.trim();
   const gender = document.getElementById('res-gender').value;
   const rent = parseInt(document.getElementById('res-rent').value) || 0;
+  const paymentMode = newResidentPaymentMode;
   const startDate = document.getElementById('res-start').value;
   const endDate = document.getElementById('res-end').value;
   const remarks = document.getElementById('res-remarks').value.trim();
@@ -569,10 +645,12 @@ async function saveResident() {
         phone,
         gender,
         monthly_rent: rent,
-        payment_mode: 'Online',
+        payment_mode: paymentMode,
         start_date: parseDate(startDate),
         end_date: parseDate(endDate),
-        remarks
+        remarks,
+        is_booked: false,
+        is_leaving: false
       });
 
     // Add to memory for instant UI
@@ -580,7 +658,7 @@ async function saveResident() {
     if (room) {
       room.residents.push({
         id: resRef.id,
-        data: { name, phone, gender, monthly_rent: rent, payment_mode: 'Online', start_date: parseDate(startDate), end_date: parseDate(endDate), remarks }
+        data: { name, phone, gender, monthly_rent: rent, payment_mode: paymentMode, start_date: parseDate(startDate), end_date: parseDate(endDate), remarks, is_booked: false, is_leaving: false }
       });
     }
 
@@ -981,6 +1059,25 @@ function openEditFieldModal(field, roomId, residentId, residentData, value) {
   }
 
   overlay.classList.add('active');
+
+  // Show/hide Leaving Notice button only for end_date field
+  const leavingNoticeBtn = document.getElementById('edit-field-leaving-notice');
+  if (leavingNoticeBtn) {
+    if (field === 'end_date' && residentData && !residentData.is_booked) {
+      leavingNoticeBtn.style.display = '';
+      if (residentData.is_leaving) {
+        leavingNoticeBtn.textContent = 'Remove Notice';
+        leavingNoticeBtn.classList.remove('btn-leaving-notice');
+        leavingNoticeBtn.classList.add('btn-outline');
+      } else {
+        leavingNoticeBtn.textContent = 'Leaving Notice';
+        leavingNoticeBtn.classList.add('btn-leaving-notice');
+        leavingNoticeBtn.classList.remove('btn-outline');
+      }
+    } else {
+      leavingNoticeBtn.style.display = 'none';
+    }
+  }
 }
 
 function closeEditFieldModal() {
@@ -1414,7 +1511,11 @@ function showWhatsAppConfirmation(residentData, roomData, status) {
   let popupMessage = `Send payment reminder to <strong>${name}</strong>?`;
   let btnText = 'Send Reminder';
 
-  if (status === 'paid') {
+  if (residentData.is_booked) {
+    popupTitle = 'Contact via WhatsApp';
+    popupMessage = `Open WhatsApp chat with <strong>${name}</strong>?`;
+    btnText = 'Open WhatsApp';
+  } else if (status === 'paid') {
     popupTitle = 'Contact via WhatsApp';
     popupMessage = `Open WhatsApp chat with <strong>${name}</strong>?`;
     btnText = 'Open WhatsApp';
@@ -1434,10 +1535,12 @@ function showWhatsAppConfirmation(residentData, roomData, status) {
           <span class="label">Room:</span>
           <span class="value">${roomNo}</span>
         </div>
+        ${!residentData.is_booked && status !== 'paid' ? `
         <div class="detail-item">
           <span class="label">Due Date:</span>
           <span class="value">${endDateStr}</span>
         </div>
+        ` : ''}
       </div>
       
       <div class="whatsapp-confirm-actions">
@@ -1494,10 +1597,12 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
     let message = '';
     let whatsappUrl = `https://wa.me/${normalizedPhone}`;
 
-    if (status === 'upcoming') {
-      message = `Hello ${name},\n\nYour room payment is due soon.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease complete your payment on time.\n\nThank you.`;
-    } else if (status === 'pending') {
-      message = `Hello ${name},\n\nThis is a reminder that your room payment is currently overdue.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease clear your pending dues as soon as possible.\n\nThank you.`;
+    if (!residentData.is_booked) {
+      if (status === 'upcoming') {
+        message = `Hello ${name},\n\nYour room payment is due soon.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease complete your payment on time.\n\nThank you.`;
+      } else if (status === 'pending') {
+        message = `Hello ${name},\n\nThis is a reminder that your room payment is currently overdue.\n\nRoom No: ${roomNo}\nDue Date: ${endDateStr}\n\nPlease clear your pending dues as soon as possible.\n\nThank you.`;
+      }
     }
 
     if (message) {
@@ -1524,6 +1629,239 @@ async function sendWhatsAppReminder(residentData, roomData, status) {
   } catch (err) {
     console.error('Error opening WhatsApp:', err);
     showToast('Failed to open WhatsApp', 'error');
+  }
+}
+
+// ===== Add Booking Modal =====
+let addBookingRoomId = null;
+let addBookingRoomData = null;
+
+function openAddBookingModal(roomId, roomData) {
+  addBookingRoomId = roomId;
+  addBookingRoomData = roomData;
+
+  const overlay = document.getElementById('add-booking-modal');
+  document.getElementById('booking-room-label').textContent = `Room ${roomData.room_no}`;
+  document.getElementById('booking-name').value = '';
+  document.getElementById('booking-phone').value = '';
+  document.getElementById('booking-rent').value = '';
+
+  overlay.classList.add('active');
+}
+
+function closeAddBookingModal() {
+  document.getElementById('add-booking-modal').classList.remove('active');
+}
+
+async function saveBooking() {
+  const name = document.getElementById('booking-name').value.trim();
+  const phone = document.getElementById('booking-phone').value.trim();
+  const rent = parseInt(document.getElementById('booking-rent').value) || 0;
+
+  if (!name) {
+    showToast('Please enter resident name', 'error');
+    return;
+  }
+  if (rent < 0) {
+    showToast('Please enter a valid monthly rent', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('save-booking-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  try {
+    const resRef = await db.collection('properties').doc(currentPropertyId)
+      .collection('rooms').doc(addBookingRoomId)
+      .collection('residents').add({
+        name,
+        phone,
+        gender: 'male',
+        monthly_rent: rent,
+        payment_mode: null,
+        start_date: null,
+        end_date: null,
+        remarks: '',
+        is_booked: true,
+        is_leaving: false
+      });
+
+    // Add to memory for instant UI
+    const room = currentRooms.find(r => r.id === addBookingRoomId);
+    if (room) {
+      room.residents.push({
+        id: resRef.id,
+        data: { name, phone, gender: 'male', monthly_rent: rent, payment_mode: null, start_date: null, end_date: null, remarks: '', is_booked: true, is_leaving: false }
+      });
+    }
+
+    showToast('Booking added!');
+    closeAddBookingModal();
+    renderResidentsTable();
+  } catch (err) {
+    console.error('Error adding booking:', err);
+    showToast('Failed to add booking', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add Booking';
+  }
+}
+
+// ===== Convert Booking Modal =====
+let convertBookingRoomId = null;
+let convertBookingResidentId = null;
+let convertBookingResidentData = null;
+
+function openConvertBookingModal(roomId, residentId, residentData) {
+  convertBookingRoomId = roomId;
+  convertBookingResidentId = residentId;
+  convertBookingResidentData = residentData;
+
+  const overlay = document.getElementById('convert-booking-modal');
+  document.getElementById('convert-booking-name').textContent = `Confirming: ${residentData.name}`;
+  document.getElementById('convert-name').value = residentData.name || '';
+  document.getElementById('convert-phone').value = residentData.phone || '';
+  document.getElementById('convert-gender').value = residentData.gender || 'male';
+  document.getElementById('convert-rent').value = residentData.monthly_rent || '';
+  document.getElementById('convert-start').value = formatDateForInput(new Date());
+  document.getElementById('convert-end').value = formatDateForInput(addMonths(new Date(), 1));
+  document.getElementById('convert-remarks').value = residentData.remarks || '';
+
+  convertBookingPaymentMode = residentData.payment_mode || 'Online';
+  updateConvertBookingPaymentModeButtons();
+
+  overlay.classList.add('active');
+}
+
+function closeConvertBookingModal() {
+  document.getElementById('convert-booking-modal').classList.remove('active');
+}
+
+async function saveConvertBooking() {
+  const name = document.getElementById('convert-name').value.trim();
+  const phone = document.getElementById('convert-phone').value.trim();
+  const gender = document.getElementById('convert-gender').value;
+  const rent = parseInt(document.getElementById('convert-rent').value) || 0;
+  const paymentMode = convertBookingPaymentMode;
+  const startDate = document.getElementById('convert-start').value;
+  const endDate = document.getElementById('convert-end').value;
+  const remarks = document.getElementById('convert-remarks').value.trim();
+
+  if (!name) {
+    showToast('Please enter resident name', 'error');
+    return;
+  }
+  if (rent < 0) {
+    showToast('Please enter a valid monthly rent', 'error');
+    return;
+  }
+  if (!startDate || !endDate) {
+    showToast('Please select start and end dates', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('save-convert-booking-btn');
+  btn.disabled = true;
+  btn.textContent = 'Confirming...';
+
+  try {
+    const updateData = {
+      name,
+      phone,
+      gender,
+      monthly_rent: rent,
+      payment_mode: paymentMode,
+      start_date: parseDate(startDate),
+      end_date: parseDate(endDate),
+      remarks,
+      is_booked: false
+    };
+
+    await db.collection('properties').doc(currentPropertyId)
+      .collection('rooms').doc(convertBookingRoomId)
+      .collection('residents').doc(convertBookingResidentId)
+      .update(updateData);
+
+    // Update in memory
+    const room = currentRooms.find(r => r.id === convertBookingRoomId);
+    const resident = room ? room.residents.find(r => r.id === convertBookingResidentId) : null;
+    if (resident) {
+      resident.data.name = name;
+      resident.data.phone = phone;
+      resident.data.gender = gender;
+      resident.data.monthly_rent = rent;
+      resident.data.payment_mode = paymentMode;
+      resident.data.start_date = parseDate(startDate);
+      resident.data.end_date = parseDate(endDate);
+      resident.data.remarks = remarks;
+      resident.data.is_booked = false;
+    }
+
+    showToast('Booking confirmed as resident!');
+    closeConvertBookingModal();
+    renderResidentsTable();
+  } catch (err) {
+    console.error('Error confirming booking:', err);
+    showToast('Failed to confirm booking', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm Booking';
+  }
+}
+
+function updateConvertBookingPaymentModeButtons() {
+  const cashBtn = document.getElementById('convert-pay-mode-cash');
+  const onlineBtn = document.getElementById('convert-pay-mode-online');
+  if (cashBtn && onlineBtn) {
+    cashBtn.classList.remove('active');
+    onlineBtn.classList.remove('active');
+    if (convertBookingPaymentMode === 'Cash') {
+      cashBtn.classList.add('active');
+    } else {
+      onlineBtn.classList.add('active');
+    }
+  }
+}
+
+// ===== Leaving Notice =====
+async function saveLeavingNotice() {
+  const { roomId, residentId, residentData } = editFieldData;
+
+  if (!roomId || !residentId) {
+    showToast('Error: no resident selected', 'error');
+    return;
+  }
+
+  const isCurrentlyLeaving = residentData.is_leaving || false;
+  const newLeavingState = !isCurrentlyLeaving;
+
+  const btn = document.getElementById('edit-field-leaving-notice');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    await db.collection('properties').doc(currentPropertyId)
+      .collection('rooms').doc(roomId)
+      .collection('residents').doc(residentId)
+      .update({ is_leaving: newLeavingState });
+
+    // Update in memory
+    const room = currentRooms.find(r => r.id === roomId);
+    const resident = room ? room.residents.find(r => r.id === residentId) : null;
+    if (resident) {
+      resident.data.is_leaving = newLeavingState;
+    }
+
+    showToast(newLeavingState ? 'Leaving notice marked!' : 'Leaving notice removed!');
+    closeEditFieldModal();
+    renderResidentsTable();
+  } catch (err) {
+    console.error('Error updating leaving notice:', err);
+    showToast('Failed to update leaving notice', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isCurrentlyLeaving ? 'Remove Notice' : 'Leaving Notice';
   }
 }
 
@@ -1594,6 +1932,26 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePaymentModeButtons();
   });
 
+  // Add resident payment mode selectors
+  document.getElementById('res-pay-mode-cash').addEventListener('click', () => {
+    newResidentPaymentMode = 'Cash';
+    updateNewResidentPaymentModeButtons();
+  });
+  document.getElementById('res-pay-mode-online').addEventListener('click', () => {
+    newResidentPaymentMode = 'Online';
+    updateNewResidentPaymentModeButtons();
+  });
+
+  // Convert booking payment mode selectors
+  document.getElementById('convert-pay-mode-cash').addEventListener('click', () => {
+    convertBookingPaymentMode = 'Cash';
+    updateConvertBookingPaymentModeButtons();
+  });
+  document.getElementById('convert-pay-mode-online').addEventListener('click', () => {
+    convertBookingPaymentMode = 'Online';
+    updateConvertBookingPaymentModeButtons();
+  });
+
   // Add resident modal
   document.getElementById('add-resident-modal-close').addEventListener('click', closeAddResidentModal);
   document.getElementById('save-resident-btn').addEventListener('click', saveResident);
@@ -1636,4 +1994,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Remark textarea character counter
   document.getElementById('edit-remark-input').addEventListener('input', updateRemarkCount);
+
+  // Add Booking modal
+  document.getElementById('add-booking-modal-close').addEventListener('click', closeAddBookingModal);
+  document.getElementById('save-booking-btn').addEventListener('click', saveBooking);
+  document.getElementById('add-booking-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeAddBookingModal();
+  });
+
+  // Convert Booking modal
+  document.getElementById('convert-booking-close').addEventListener('click', closeConvertBookingModal);
+  document.getElementById('save-convert-booking-btn').addEventListener('click', saveConvertBooking);
+  document.getElementById('convert-booking-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeConvertBookingModal();
+  });
+
+  // Leaving Notice button
+  document.getElementById('edit-field-leaving-notice').addEventListener('click', saveLeavingNotice);
 });
